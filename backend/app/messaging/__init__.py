@@ -1,0 +1,1 @@
+"""Persistent inter-agent messaging."""

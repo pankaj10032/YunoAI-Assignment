@@ -1,0 +1,90 @@
+import axios from "axios";
+import { notifyApiError } from "../components/ErrorToast";
+
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!error.config?.skipToast) {
+      const canRetry = String(error.config?.method || "get").toLowerCase() === "get";
+      notifyApiError(error, {
+        detailsHref: "/monitor",
+        retry: canRetry
+          ? () => api.request({ ...error.config, skipToast: true })
+          : undefined,
+      });
+    }
+    return Promise.reject(error);
+  },
+);
+
+const unwrap = (response) => response.data;
+
+export const getAgents = () => api.get("/api/agents").then(unwrap);
+export const createAgent = (payload) => api.post("/api/agents", payload).then(unwrap);
+export const generateAgentConfig = (prompt) =>
+  api.post("/api/agents/generate", { prompt }).then(unwrap);
+export const updateAgent = (id, payload) =>
+  api.put(`/api/agents/${id}`, payload).then(unwrap);
+export const deleteAgent = (id) => api.delete(`/api/agents/${id}`).then(unwrap);
+
+export const getWorkflows = (params = {}) =>
+  api.get("/api/workflows", { params }).then(unwrap);
+export const createWorkflow = (payload) =>
+  api.post("/api/workflows", payload).then(unwrap);
+export const updateWorkflow = (id, payload) =>
+  api.put(`/api/workflows/${id}`, payload).then(unwrap);
+export const runWorkflow = (id, inputData = {}) =>
+  api.post(`/api/workflows/${id}/run`, { input_data: inputData }).then(unwrap);
+export const resumeWorkflow = (id, runId, resumeFromStep = null) =>
+  api
+    .post(`/api/workflows/${id}/resume`, {
+      run_id: runId,
+      resume_from_step: resumeFromStep,
+    })
+    .then(unwrap);
+export const executeAgent = (id, taskDescription) =>
+  api
+    .post(`/api/agents/${id}/execute`, { task_description: taskDescription })
+    .then(unwrap);
+
+export const getMessages = (runId) =>
+  api.get(`/api/runs/${runId}/messages`).then(unwrap);
+export const getAllMessages = (params = {}) =>
+  api.get("/api/messages", { params }).then(unwrap);
+
+export const getRun = (runId) => api.get(`/api/runs/${runId}`).then(unwrap);
+export const getRuns = (params = {}) =>
+  api.get("/api/runs", { params }).then(unwrap);
+export const rerunWorkflowRun = (runId) =>
+  api.post(`/api/runs/${runId}/rerun`).then(unwrap);
+export const stopWorkflowRun = (runId) =>
+  api.post(`/api/runs/${runId}/stop`).then(unwrap);
+
+export const streamLogs = (runId, handlers = {}) => {
+  const wsBase = API_BASE_URL.replace(/^http/, "ws");
+  const socket = new WebSocket(`${wsBase}/ws/run/${runId}`);
+
+  socket.onopen = handlers.onOpen || null;
+  socket.onerror = handlers.onError || null;
+  socket.onclose = handlers.onClose || null;
+  socket.onmessage = (event) => {
+    try {
+      handlers.onMessage?.(JSON.parse(event.data));
+    } catch {
+      handlers.onMessage?.({ type: "raw", message: event.data });
+    }
+  };
+
+  return socket;
+};

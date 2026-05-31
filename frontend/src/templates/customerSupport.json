@@ -1,0 +1,22 @@
+{
+  "name": "Customer Support Router",
+  "description": "Router classifies an issue, specialists prepare answers, Aggregator returns a final response.",
+  "nodes": [
+    { "id": "input-1", "type": "input", "position": { "x": -280, "y": 160 }, "data": { "label": "Customer Message" } },
+    { "id": "agent-router", "type": "agent", "position": { "x": 0, "y": 130 }, "data": { "label": "Router", "role": "Support Router", "status": "idle", "tools": ["memory"], "task": "Classify the customer issue and route it to the right specialist." } },
+    { "id": "condition-1", "type": "condition", "position": { "x": 310, "y": 130 }, "data": { "label": "Issue Type", "expression": "'billing' in str(last_output).lower()" } },
+    { "id": "agent-billing", "type": "agent", "position": { "x": 660, "y": 40 }, "data": { "label": "Billing Specialist", "role": "Billing Support Agent", "status": "idle", "tools": ["calculator", "memory"], "task": "Handle pricing, invoices, refunds, and subscription issues." } },
+    { "id": "agent-technical", "type": "agent", "position": { "x": 660, "y": 240 }, "data": { "label": "Technical Specialist", "role": "Technical Support Agent", "status": "idle", "tools": ["search", "memory"], "task": "Handle setup, bugs, integrations, and troubleshooting." } },
+    { "id": "agent-aggregator", "type": "agent", "position": { "x": 1000, "y": 140 }, "data": { "label": "Aggregator", "role": "Support Response Aggregator", "status": "idle", "tools": ["memory"], "task": "Combine specialist guidance into a polished customer reply." } },
+    { "id": "output-1", "type": "output", "position": { "x": 1320, "y": 180 }, "data": { "label": "Customer Reply" } }
+  ],
+  "edges": [
+    { "id": "e-input-router", "source": "input-1", "target": "agent-router" },
+    { "id": "e-router-condition", "source": "agent-router", "target": "condition-1" },
+    { "id": "e-condition-billing", "source": "condition-1", "target": "agent-billing", "sourceHandle": "true", "label": "true", "data": { "condition": "true" } },
+    { "id": "e-condition-technical", "source": "condition-1", "target": "agent-technical", "sourceHandle": "false", "label": "false", "data": { "condition": "false" } },
+    { "id": "e-billing-aggregator", "source": "agent-billing", "target": "agent-aggregator" },
+    { "id": "e-technical-aggregator", "source": "agent-technical", "target": "agent-aggregator" },
+    { "id": "e-aggregator-output", "source": "agent-aggregator", "target": "output-1" }
+  ]
+}

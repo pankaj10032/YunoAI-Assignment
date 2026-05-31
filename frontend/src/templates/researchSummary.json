@@ -1,0 +1,17 @@
+{
+  "name": "Research & Summarize",
+  "description": "Researcher gathers context, Writer drafts the summary, Reviewer checks quality.",
+  "nodes": [
+    { "id": "input-1", "type": "input", "position": { "x": -260, "y": 80 }, "data": { "label": "Topic Input" } },
+    { "id": "agent-researcher", "type": "agent", "position": { "x": 20, "y": 40 }, "data": { "label": "Researcher", "role": "Research Agent", "status": "idle", "tools": ["search", "memory"], "task": "Research the topic and return key findings with sources." } },
+    { "id": "agent-writer", "type": "agent", "position": { "x": 340, "y": 40 }, "data": { "label": "Writer", "role": "Writing Agent", "status": "idle", "tools": ["memory"], "task": "Turn the research into a concise, structured summary." } },
+    { "id": "agent-reviewer", "type": "agent", "position": { "x": 660, "y": 40 }, "data": { "label": "Reviewer", "role": "Review Agent", "status": "idle", "tools": ["calculator", "memory"], "task": "Review the summary for accuracy, clarity, and missing context." } },
+    { "id": "output-1", "type": "output", "position": { "x": 980, "y": 80 }, "data": { "label": "Reviewed Summary" } }
+  ],
+  "edges": [
+    { "id": "e-input-researcher", "source": "input-1", "target": "agent-researcher" },
+    { "id": "e-researcher-writer", "source": "agent-researcher", "target": "agent-writer" },
+    { "id": "e-writer-reviewer", "source": "agent-writer", "target": "agent-reviewer" },
+    { "id": "e-reviewer-output", "source": "agent-reviewer", "target": "output-1" }
+  ]
+}
