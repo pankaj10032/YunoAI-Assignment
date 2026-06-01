@@ -10,7 +10,7 @@ python-dotenv==1.0.1
 httpx==0.28.1
 
 # AI/ML Dependencies
-crewai==0.11.2
+crewai==0.80.0
 openai==1.59.7
 
 # Search and Tools
@@ -22,9 +22,12 @@ python-telegram-bot==21.9
 # Scheduling
 apscheduler==3.10.1
 
+# Additional dependencies
+setuptools==75.6.0
+
 # Testing (optional for development)
 pytest==8.3.4
-setuptools==75.6.0
+pytest-cov==6.0.0
 
 # Hugging Face Hub
 huggingface-hub>=0.20.0
