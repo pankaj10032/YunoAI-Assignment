@@ -1,233 +1,177 @@
-# AI Orchestrator
+# 🚀 GitHub to Hugging Face CI/CD Setup
 
-> **Production-ready agentic orchestration platform** — build, schedule, monitor, and extend multi-agent AI workflows with real-time observability.
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [Environment Variables](#environment-variables)
-- [API Reference](#api-reference)
-- [Running Tests](#running-tests)
-- [Database Migrations](#database-migrations)
-- [Extending the Platform](#extending-the-platform)
+This repository contains the complete setup for automatic CI/CD deployment from GitHub to Hugging Face Spaces.
 
 ---
 
-## Overview
+## 📚 Documentation
 
-AI Orchestrator is a local-first platform for creating, configuring, and running collaborative AI agents. It combines FastAPI, React + React Flow, SQLite/PostgreSQL, APScheduler, and Docker Compose into a single cohesive system.
-
-Key differentiators over the first-milestone scaffold:
-
-- **Real-time execution visibility** via WebSocket streams with auto-reconnect
-- **Inline workflow validation** (cycle detection, orphan nodes, invalid edges)
-- **Full tool ecosystem** (MCP servers, OpenAPI specs, webhooks) with sandboxed execution
-- **Structured telemetry** with async buffering, PII sanitisation, and correlation ID tracing
-- **Production-grade worker pool** with priority queues, circuit breaker, and step checkpointing
+| Document | Description |
+|----------|-------------|
+| [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) | Step-by-step setup guide |
+| [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) | Comprehensive deployment guide |
+| [DEPLOYMENT_VERIFICATION.md](./DEPLOYMENT_VERIFICATION.md) | Verification checklist |
+| [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Common issues and solutions |
 
 ---
 
-## Features
+## 🎯 Quick Start
 
-| Category | Details |
-|---|---|
-| **Real-time streaming** | WebSocket per run (`/ws/run/{run_id}`) with exponential back-off auto-reconnect and local log queue |
-| **Workflow validation** | Cycle + orphan + invalid-edge detection — inline UI + `POST /api/workflows/validate` |
-| **Schedule config** | Cron expression UI with full IANA timezone list (via `Intl.supportedValuesOf`) and next-5-run preview |
-| **Error boundaries** | React `ErrorBoundary` reports crashes to `/api/telemetry` with correlation ID |
-| **Toast notifications** | Slide-in toasts (success / error / info / warning) with deduplication and auto-dismiss |
-| **Dashboard analytics** | Dual-area chart (tokens + cost) with CSV export |
-| **Structured telemetry** | Async-buffered, PII-sanitised events flushed to DB every 5 s or 50 events |
-| **Correlation IDs** | `X-Correlation-ID` propagated: HTTP middleware → log context → DB rows |
-| **Tool sandbox** | 15 s timeout, 10 KB output cap, PII stripping, per-agent cost tracking |
-| **P2P messaging** | ACK/NAK persistence, retry queue (max 3 attempts), Dead Letter Queue |
-| **Worker pool** | Priority queues (High / Normal / Low), circuit breaker, step-level checkpointing |
+### 1. Create Hugging Face Space
+- Visit: https://huggingface.co/spaces
+- Create new Space with name: `AI-Orchestrator`
 
----
+### 2. Get Hugging Face Token
+- Go to: https://huggingface.co/settings/tokens
+- Create new token with **Write** access
+- Copy the token (format: `hf_xxxxxxxxxxxxx`)
 
-## Architecture
+### 3. Add Token to GitHub
+- Go to your GitHub repository
+- Settings → Secrets and variables → Actions
+- New repository secret:
+  - Name: `HF_TOKEN`
+  - Value: [Paste your token]
 
-```
-┌────────────────────────────────────────────────────────┐
-│                   React Frontend (Vite)                │
-│  WorkflowBuilder · DashboardAnalytics · ToastProvider  │
-│  useWorkflowStream(runId) — WebSocket auto-reconnect   │
-└───────────────────────┬────────────────────────────────┘
-                        │ REST + WebSocket
-┌───────────────────────▼────────────────────────────────┐
-│                  FastAPI Backend                        │
-│  CorrelationIDMiddleware → QuotaLimiterMiddleware       │
-│  ┌─────────────┐  ┌─────────────┐  ┌───────────────┐  │
-│  │   Agents    │  │  Workflows  │  │   Scheduler   │  │
-│  └──────┬──────┘  └──────┬──────┘  └───────┬───────┘  │
-│         └────────────────┼─────────────────┘          │
-│                    WorkerPool (priority queue)         │
-│                    ┌──────┴──────┐                     │
-│               Executor      ToolEcosystem              │
-│                              └── ToolSandbox           │
-│                    └──────┬──────┘                     │
-│                  P2P MessageRouter                      │
-│                  TelemetryService (async buffer)        │
-└───────────────────────┬────────────────────────────────┘
-                        │ SQLAlchemy ORM
-                   SQLite / PostgreSQL
+### 4. Update Workflow Configuration
+Edit `.github/workflows/deploy.yml`:
+```yaml
+env:
+  HF_USERNAME: Pankaj10346          # Your Hugging Face username
+  HF_SPACE_NAME: AI-Orchestrator    # Your space name
 ```
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for component-level details.
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- **Python ≥ 3.11**
-- **Node.js ≥ 18**
-- An OpenAI API key (or any compatible LLM endpoint)
-
-### Option A — Docker Compose (recommended)
-
+### 5. Trigger Deployment
 ```bash
-cp .env.example .env        # add OPENAI_API_KEY
-docker compose up --build
-```
-
-- Frontend: **http://localhost:3000**
-- Backend API docs: **http://localhost:8000/docs**
-
-### Option B — Local dev (no Docker)
-
-**Backend:**
-
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS / Linux
-
-pip install -r requirements.txt
-uvicorn app.app:app --reload --port 8000
-```
-
-**Frontend:**
-
-```bash
-cd frontend
-npm install
-npm run dev          # http://localhost:5173
+git push origin main
 ```
 
 ---
 
-## Project Structure
+## 📋 Prerequisites
 
-```text
+- ✅ GitHub account
+- ✅ Hugging Face account
+- ✅ Git installed
+- ✅ AI Orchestrator code in repository
+
+---
+
+## 🔄 How It Works
+
+```mermaid
+graph LR
+    A[Push to main] --> B[GitHub Actions]
+    B --> C[Checkout Code]
+    C --> D[Install Dependencies]
+    D --> E[Clone HF Space]
+    E --> F[Sync Files]
+    F --> G[Commit & Push]
+    G --> H[Space Builds]
+    H --> I[Live!]
+```
+
+**Every push to main** → **Automatic deployment** in ~2-5 minutes
+
+---
+
+## 📁 File Structure
+
+```
 ai-orchestrator/
-  backend/
-    app/
-      agents/         ← agent executor, generator
-      channels/       ← Telegram, web channel integrations
-      messaging/      ← P2P router, message bus
-      middleware/     ← CorrelationIDMiddleware, rate limiter
-      models/         ← SQLAlchemy ORM + Pydantic schemas
-      runtime/        ← worker pool, circuit breaker
-      scheduler/      ← APScheduler engine
-      services/       ← telemetry async service
-      tools/          ← registry, ecosystem, sandbox
-      utils/          ← observability, structured logging
-      workflows/      ← templates, validators
-      app.py          ← FastAPI application entry point
-    tests/
-    requirements.txt
-    Dockerfile
-  frontend/
-    src/
-      components/     ← WorkflowBuilder, DashboardAnalytics, ToastProvider, ErrorBoundary …
-      hooks/          ← useWorkflowStream, useRunStream
-      pages/          ← DashboardPage, WorkflowsPage, Monitor …
-      services/       ← api.js
-    package.json
-    Dockerfile
-  docker-compose.yml
-  ARCHITECTURE.md
-  EXTENSION_GUIDE.md
+├── .github/
+│   └── workflows/
+│       └── deploy.yml          # ← CI/CD workflow
+├── app.py                       # Gradio interface
+├── requirements.txt
+├── backend/
+│   └── app/
+│       └── app.py              # FastAPI backend
+├── README.md
+├── SETUP_INSTRUCTIONS.md       # Setup guide
+├── DEPLOYMENT_GUIDE.md         # Deployment guide
+├── DEPLOYMENT_VERIFICATION.md  # Verification checklist
+└── TROUBLESHOOTING.md          # Troubleshooting guide
 ```
 
 ---
 
-## Environment Variables
+## ✅ Verification
 
-| Variable | Default | Description |
-|---|---|---|
-| `OPENAI_API_KEY` | — | **Required** for LLM calls |
-| `DATABASE_URL` | `sqlite:///./orchestrator.db` | SQLAlchemy connection string |
-| `CORS_ORIGINS` | `["http://localhost:5173"]` | Allowed CORS origins (JSON array) |
-| `TELEGRAM_BOT_TOKEN` | — | Optional Telegram bot integration |
-| `ENABLE_TELEGRAM_POLLING` | `false` | Enable Telegram polling mode |
-| `LOG_LEVEL` | `INFO` | Python `logging` level |
-| `ENVIRONMENT` | `development` | `development` or `production` |
+After setup, verify:
 
----
+1. **GitHub Actions**
+   - Go to Actions tab
+   - Trigger workflow
+   - Check for green checkmarks
 
-## API Reference
+2. **Hugging Face Space**
+   - Visit: https://huggingface.co/spaces/Pankaj10346/AI-Orchestrator
+   - Check Files tab
+   - Test App tab
 
-Full interactive docs: **http://localhost:8000/docs**
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/agents/{id}/execute` | Execute an agent (async — returns `run_id`) |
-| `POST` | `/api/workflows` | Create a workflow |
-| `POST` | `/api/workflows/{id}/run` | Start a workflow run |
-| `POST` | `/api/workflows/validate` | Validate workflow JSON (`{valid, errors}`) |
-| `GET` | `/api/runs/{id}` | Get run status & metadata |
-| `WS` | `/ws/run/{id}` | Real-time run events stream |
-| `POST` | `/api/telemetry` | Ingest UI-side telemetry (ErrorBoundary, etc.) |
-| `GET` | `/api/logs/search?correlation_id=…` | Search structured logs by correlation ID |
-| `GET` | `/api/runtime/status` | Worker pool health & queue depths |
-| `POST` | `/api/messaging/send` | Send a P2P message between agents |
+3. **Automatic Deployment**
+   - Make a small change
+   - Push to main
+   - Verify automatic deployment
 
 ---
 
-## Running Tests
+## 🐛 Troubleshooting
 
-```bash
-# Backend
-cd backend
-pytest -v
+Common issues:
 
-# Frontend
-cd frontend
-npm test
-```
+- ❌ "HF_TOKEN secret is not set" → Add secret in GitHub
+- ❌ "Authentication failed" → Generate new token with Write access
+- ❌ "Space not found" → Verify HF_USERNAME and HF_SPACE_NAME
+- ❌ "No changes to deploy" → Make a change and push again
 
----
-
-## Database Migrations
-
-The project uses SQLAlchemy `create_all()` for dev convenience. For production use [Alembic](https://alembic.sqlalchemy.org/).
-
-**Dev reset** (when adding/removing columns in SQLite):
-
-```bash
-# Windows
-del backend\orchestrator.db
-# macOS / Linux
-rm backend/orchestrator.db
-# Restart the backend — create_all() recreates all tables automatically
-```
+See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for detailed solutions.
 
 ---
 
-## Extending the Platform
+## 📖 Next Steps
 
-See [EXTENSION_GUIDE.md](./EXTENSION_GUIDE.md) for step-by-step guides on:
+1. **Read Setup Instructions**
+   - [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)
 
-- Adding MCP / OpenAPI / webhook tools
-- Creating custom workflow node types in React Flow
-- Building new UI pages and hooks
-- Deploying to production (Render, Fly.io, Docker Swarm)
+2. **Configure Your Space**
+   - Create Hugging Face Space
+   - Get access token
+   - Add to GitHub secrets
+
+3. **Test Deployment**
+   - Trigger first deployment
+   - Verify it works
+   - Test automatic deployment
+
+4. **Monitor and Maintain**
+   - Check logs regularly
+   - Update dependencies
+   - Keep documentation current
+
+---
+
+## 🎉 Success!
+
+When everything is configured:
+
+- ✅ Every push to main triggers deployment
+- ✅ Your app updates automatically on Hugging Face
+- ✅ No manual deployment needed
+- ✅ Full CI/CD pipeline running
+
+**Your space URL**: https://huggingface.co/spaces/Pankaj10346/AI-Orchestrator
+
+---
+
+## 📞 Need Help?
+
+- **Setup Issues**: See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)
+- **Deployment Guide**: See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)
+- **Verification**: See [DEPLOYMENT_VERIFICATION.md](./DEPLOYMENT_VERIFICATION.md)
+- **Troubleshooting**: See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+
+---
+
+**Happy Deploying! 🚀**

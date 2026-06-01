@@ -1,0 +1,122 @@
+name: Deploy to Hugging Face Spaces
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  HF_USERNAME: Pankaj10346
+  HF_SPACE_NAME: AI-Orchestrator
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper git operations
+          lfs: true       # Enable Git LFS if using large files
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install huggingface_hub
+
+      - name: Verify Hugging Face token
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "Error: HF_TOKEN secret is not set"
+            exit 1
+          fi
+          echo "✓ HF_TOKEN is configured"
+
+      - name: Configure Git for Hugging Face
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Login to Hugging Face
+          python -c "from huggingface_hub import login; login(token='$HF_TOKEN')"
+          
+          # Clone the Hugging Face Space repository
+          git clone https://huggingface.co/spaces/${{ env.HF_USERNAME }}/${{ env.HF_SPACE_NAME }} hf-space
+          
+          # Copy all files except .git directory
+          rsync -av --exclude='.git' --exclude='hf-space' ./ hf-space/
+          
+          # Navigate to the cloned space
+          cd hf-space
+          
+          # Check if there are changes to commit
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Deploy from GitHub Actions - $(date +'%Y-%m-%d %H:%M:%S')"
+            git push https://oauth2:$HF_TOKEN@huggingface.co/spaces/${{ env.HF_USERNAME }}/${{ env.HF_SPACE_NAME }} main
+            echo "✓ Successfully deployed to Hugging Face Spaces"
+          else
+            echo "ℹ No changes to deploy"
+          fi
+
+      - name: Verify deployment
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "Deployment completed!"
+          echo "Your space is available at: https://huggingface.co/spaces/${{ env.HF_USERNAME }}/${{ env.HF_SPACE_NAME }}"
+          
+          # Wait a moment for the space to start building
+          sleep 5
+          
+          # Check space status using Hugging Face API
+          python -c "
+          from huggingface_hub import HfApi
+          api = HfApi(token='$HF_TOKEN')
+          try:
+              space_info = api.space_info('${{ env.HF_USERNAME }}/${{ env.HF_SPACE_NAME }}')
+              print(f'✓ Space status: {space_info.runtime.stage if space_info.runtime else \"Unknown\"}')
+          except Exception as e:
+              print(f'⚠ Could not verify space status: {e}')
+          "
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Space URL**: https://huggingface.co/spaces/${{ env.HF_USERNAME }}/${{ env.HF_SPACE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Please check the logs above for details."
+          echo "Common issues:"
+          echo "  1. Invalid HF_TOKEN"
+          echo "  2. Space does not exist"
+          echo "  3. Insufficient permissions"
+          echo "  4. Network connectivity issues"

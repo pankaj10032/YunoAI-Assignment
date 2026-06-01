@@ -1,40 +1,83 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
 venv/
 env/
-*.egg-info/
+ENV/
+.venv
 
-# Node
-node_modules/
-dist/
-.vite/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Environment
+# Environment Variables
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 
-# Database and runtime data
+# Data
+data/
 *.db
 *.sqlite
 *.sqlite3
-backend/data/
 
-# Docker
-docker-compose.override.yml
+# Logs
+*.log
+logs/
 
-# OS and editors
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Large Files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Hugging Face
+.huggingface/
+hf_cache/
+
+# OS
 .DS_Store
 Thumbs.db
-.idea/
-.vscode/
+
+# Cache
+.cache/
+temp/
+tmp/
+
+# Build artifacts
+*.pyc
+*.pyo

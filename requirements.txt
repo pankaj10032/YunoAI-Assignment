@@ -1,0 +1,30 @@
+# Gradio Interface (Hugging Face Spaces)
+gradio==4.44.0
+
+# FastAPI Backend Dependencies
+fastapi==0.115.6
+pydantic==2.10.4
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.36
+python-dotenv==1.0.1
+httpx==0.28.1
+
+# AI/ML Dependencies
+crewai==0.11.2
+openai==1.59.7
+
+# Search and Tools
+duckduckgo-search==7.2.1
+
+# Telegram Integration
+python-telegram-bot==21.9
+
+# Scheduling
+apscheduler==3.10.1
+
+# Testing (optional for development)
+pytest==8.3.4
+setuptools==75.6.0
+
+# Hugging Face Hub
+huggingface-hub>=0.20.0
