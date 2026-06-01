@@ -1,5 +1,5 @@
 import React from "react";
-const configItems = [
+const defaultToolItems = [
   {
     id: "search",
     group: "tools",
@@ -24,6 +24,8 @@ const configItems = [
     description: "Keep short context between steps",
     tooltip: "Stores lightweight agent context",
   },
+];
+const channelItems = [
   {
     id: "telegram",
     group: "channels",
@@ -61,6 +63,7 @@ function ToggleSwitch({ enabled }) {
 
 export default function ConfigToggles({
   tools = [],
+  toolItems = [],
   channels = [],
   onToolsChange,
   onChannelsChange,
@@ -72,6 +75,14 @@ export default function ConfigToggles({
   const channelSet = new Set(channels);
   const toolLimitReached = toolSet.size >= maxTools;
   const channelLimitReached = channelSet.size >= maxChannels;
+  const availableToolItems = (toolItems && toolItems.length ? toolItems : defaultToolItems).map((item) => ({
+    id: item.id || item.name,
+    group: item.group || "tools",
+    label: item.label || item.name,
+    icon: item.icon || (item.name ? item.name[0].toUpperCase() : "T"),
+    description: item.description || item.tooltip || "",
+    tooltip: item.tooltip || item.description || item.name,
+  }));
 
   const toggleItem = (item) => {
     if (disabled) return;
@@ -108,7 +119,7 @@ export default function ConfigToggles({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {configItems.map((item) => {
+        {[...availableToolItems, ...channelItems].map((item) => {
           const enabled =
             item.group === "tools" ? toolSet.has(item.id) : channelSet.has(item.id);
           const limitReached =

@@ -11,8 +11,9 @@ import {
 
 import { getAgents, getRuns, getWorkflows, stopWorkflowRun } from "../services/api";
 import { useRunStream } from "../hooks/useRunStream";
+import AuditTimeline from "../components/AuditTimeline";
 
-const tabs = ["Active Runs", "Message Stream", "Token/Cost"];
+const tabs = ["Active Runs", "Message Stream", "Token/Cost", "Audit Trail"];
 const budgetLimit = 100000;
 
 const statusClass = {
@@ -104,7 +105,12 @@ export default function Monitor() {
         const agentMatches = !filters.agent || String(event.agent_id || "") === filters.agent;
         const channelMatches = !filters.channel || event.channel === filters.channel;
         const levelMatches = !filters.level || event.level === filters.level;
-        return agentMatches && channelMatches && levelMatches;
+        // Filter out repetitive system messages
+        const isSystemNoise = event.channel === "internal" && 
+          (event.message?.includes("Connection interrupted") || 
+           event.message?.includes("Reconnecting") ||
+           event.message?.includes("Connected to run"));
+        return agentMatches && channelMatches && levelMatches && !isSystemNoise;
       }),
     [filters, messageEvents],
   );
@@ -217,6 +223,10 @@ export default function Monitor() {
 
       {activeTab === "Token/Cost" ? (
         <TokenCostPanel points={usagePoints} totals={totals} budgetPct={budgetPct} />
+      ) : null}
+
+      {activeTab === "Audit Trail" ? (
+        <AuditTimeline runId={selectedRunId} />
       ) : null}
     </div>
   );
@@ -358,10 +368,20 @@ function TokenCostPanel({ points, totals, budgetPct }) {
         <Metric label="Cost" value={`$${totals.cost.toFixed(6)}`} tone="emerald" />
         <div className="rounded-md border border-line bg-surface-strong p-3">
           <p className="text-xs font-semibold uppercase text-muted">Budget Gauge</p>
-          <p className="mt-1 text-xl font-bold">{budgetPct}%</p>
-          <div className="mt-2 h-2 rounded-full bg-soft">
-            <div className="h-2 rounded-full bg-emerald-600" style={{ width: `${budgetPct}%` }} />
+          <p className={`mt-1 text-xl font-bold ${budgetPct >= 90 ? "text-red-600" : budgetPct >= 70 ? "text-amber-600" : "text-emerald-600"}`}>
+            {budgetPct}%
+          </p>
+          <div className="mt-2 h-2.5 rounded-full bg-soft">
+            <div
+              className={`h-2.5 rounded-full transition-all ${
+                budgetPct >= 90 ? "bg-red-500" : budgetPct >= 70 ? "bg-amber-500" : "bg-emerald-600"
+              }`}
+              style={{ width: `${budgetPct}%` }}
+            />
           </div>
+          <p className="mt-1 text-xs text-muted">
+            {budgetPct >= 90 ? "⚠ Budget nearly exhausted" : budgetPct >= 70 ? "Budget warning threshold" : "Within budget"}
+          </p>
         </div>
       </section>
       <section className="grid gap-4 xl:grid-cols-2">

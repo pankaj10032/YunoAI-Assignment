@@ -41,6 +41,10 @@ class Settings:
     enable_telegram_polling: bool = (
         os.getenv("ENABLE_TELEGRAM_POLLING", "false").lower() == "true"
     )
+    scheduler_max_concurrent_jobs: int = int(
+        os.getenv("SCHEDULER_MAX_CONCURRENT_JOBS", "5")
+    )
+    scheduler_job_store_url: str = os.getenv("SCHEDULER_JOB_STORE_URL", database_url)
 
     def validate_runtime(self) -> None:
         if self.llm_provider == "openai" and not self.openai_api_key:

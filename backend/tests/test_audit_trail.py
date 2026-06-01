@@ -17,6 +17,16 @@ def test_audit_trail_records_ordered_events_and_is_immutable(client, db, monkeyp
     assert response.status_code == 202
 
     run_id = response.json()["run_id"]
+    
+    import time
+    from app.models.models import WorkflowRun
+    for _ in range(50):
+        db.expire_all()
+        run = db.get(WorkflowRun, run_id)
+        if run and run.status == "completed":
+            break
+        time.sleep(0.05)
+
     timeline = client.get(f"/api/audit/run/{run_id}")
     assert timeline.status_code == 200
     events = timeline.json()["events"]

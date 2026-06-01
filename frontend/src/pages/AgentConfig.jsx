@@ -2,7 +2,7 @@ import React from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import ConfigToggles from "../components/ConfigToggles";
-import { createAgent, executeAgent } from "../services/api";
+import { createAgent, executeAgent, getToolList } from "../services/api";
 import { connectRunSocket } from "../services/websocket";
 
 const tabs = ["Basics", "Tools/Memory", "Schedules", "Guardrails", "Channels"];
@@ -71,6 +71,7 @@ export default function AgentConfig({ agent, initialValues, onCancel, onSubmit, 
   const [testMessages, setTestMessages] = useState([]);
   const [isTesting, setIsTesting] = useState(false);
   const [isLocalSaving, setIsLocalSaving] = useState(false);
+  const [toolOptions, setToolOptions] = useState([]);
 
   useEffect(() => {
     const draft = !agent && !initialValues ? readDraft() : null;
@@ -83,6 +84,12 @@ export default function AgentConfig({ agent, initialValues, onCancel, onSubmit, 
     });
     setGuardrailsText(JSON.stringify(source.guardrails || {}, null, 2));
   }, [agent, initial, initialValues]);
+
+  useEffect(() => {
+    getToolList()
+      .then((tools) => setToolOptions(tools))
+      .catch(() => setToolOptions([]));
+  }, []);
 
   const errors = useMemo(() => validate(values, guardrailsText), [guardrailsText, values]);
   const isValid = Object.keys(errors).length === 0;
@@ -192,7 +199,7 @@ export default function AgentConfig({ agent, initialValues, onCancel, onSubmit, 
           <BasicsTab values={values} errors={errors} setField={setField} previewPrompt={previewPrompt} />
         ) : null}
         {activeTab === "Tools/Memory" ? (
-          <ToolsTab values={values} setTools={setTools} setField={setField} advancedOpen={advancedOpen} setAdvancedOpen={setAdvancedOpen} />
+          <ToolsTab values={values} toolOptions={toolOptions} setTools={setTools} setField={setField} advancedOpen={advancedOpen} setAdvancedOpen={setAdvancedOpen} />
         ) : null}
         {activeTab === "Schedules" ? <ScheduleTab values={values} errors={errors} setField={setField} /> : null}
         {activeTab === "Guardrails" ? (
@@ -258,10 +265,10 @@ function BasicsTab({ values, errors, setField, previewPrompt }) {
   );
 }
 
-function ToolsTab({ values, setTools, setField, advancedOpen, setAdvancedOpen }) {
+function ToolsTab({ values, toolOptions, setTools, setField, advancedOpen, setAdvancedOpen }) {
   return (
     <section className="space-y-4" role="tabpanel">
-      <ConfigToggles tools={toolNames(values.tools)} channels={channelNames(values.channels)} onToolsChange={setTools} onChannelsChange={() => {}} maxChannels={10} />
+      <ConfigToggles toolItems={toolOptions} tools={toolNames(values.tools)} channels={channelNames(values.channels)} onToolsChange={setTools} onChannelsChange={() => {}} maxChannels={10} />
       <label className="flex items-center justify-between rounded-md border border-line bg-surface px-3 py-2">
         <span><span className="block text-sm font-medium">Memory Enabled</span><span className="text-xs text-muted">Let the agent store short context.</span></span>
         <input type="checkbox" checked={values.memory_enabled} onChange={(event) => {

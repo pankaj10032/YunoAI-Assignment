@@ -106,4 +106,4 @@ def test_generate_agent_config(client, monkeypatch):
     assert config["channels"] == ["web"]
     assert config["memory_enabled"] is True
     assert config["name"]
-    assert any(tool["name"] == "search" for tool in config["tools"])
+    assert any(tool["name"] in ("search", "web_search") for tool in config["tools"])

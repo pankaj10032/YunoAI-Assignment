@@ -14,7 +14,7 @@ from app.audit.trail import record_event
 from app.memory.graph import add_message_node
 from app.models.database import SessionLocal
 from app.models.models import Agent, Message, Workflow, WorkflowRun
-from app.utils.observability import get_request_context, set_request_context
+from app.utils.observability import get_request_context, set_request_context, log_event
 from app.workflows.engine import WorkflowPaused, execute_workflow
 
 
@@ -192,6 +192,10 @@ async def _mark_completed(db: Session, run: WorkflowRun, result: str) -> None:
     run.total_cost = usage["cost"]
     db.commit()
     record_event("completion", {"usage": usage, "result": result}, {"run_id": run.id}, db=db)
+    try:
+        log_event(run_id=run.id, step="completed", tokens=usage.get("tokens"), cost=usage.get("cost"))
+    except Exception:
+        pass
     await event_broker.publish(
         run.id,
         {
@@ -253,6 +257,12 @@ def _persist_message(
     db.refresh(message)
     try:
         add_message_node(message, db=db)
+    except Exception:
+        pass
+    # queue telemetry entry for the message (batched flush)
+    try:
+        meta = message.message_metadata or {}
+        log_event(run_id=message.workflow_run_id, agent_id=message.sender_agent_id, step="message_sent", tokens=meta.get("tokens"), cost=meta.get("cost"))
     except Exception:
         pass
     return message

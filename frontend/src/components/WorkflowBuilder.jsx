@@ -120,26 +120,85 @@ export default function WorkflowBuilder({
   const { screenToFlowPosition, zoomIn, zoomOut } = useReactFlow();
 
   const decoratedNodes = useMemo(
-    () =>
-      nodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          onDelete: (id) => {
-            setNodes((items) => items.filter((item) => item.id !== id));
-            setEdges((items) => items.filter((edge) => edge.source !== id && edge.target !== id));
-          },
-          onChange: (id, patch) => {
-            setNodes((items) =>
-              items.map((item) =>
-                item.id === id ? { ...item, data: { ...item.data, ...patch } } : item,
-              ),
-            );
-          },
+    () => nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        onDelete: (id) => {
+          setNodes((items) => items.filter((item) => item.id !== id));
+          setEdges((items) => items.filter((edge) => edge.source !== id && edge.target !== id));
         },
-      })),
+        onChange: (id, patch) => {
+          setNodes((items) =>
+            items.map((item) => (item.id === id ? { ...item, data: { ...item.data, ...patch } } : item)),
+          );
+        },
+      },
+    })),
     [nodes, setEdges, setNodes],
   );
+
+  // Validation: detect invalid edges, orphan nodes, and cycles
+  const validation = useMemo(() => {
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    const incoming = new Map();
+    const outgoing = new Map();
+    nodes.forEach((n) => {
+      incoming.set(n.id, []);
+      outgoing.set(n.id, []);
+    });
+    const invalidEdges = [];
+    edges.forEach((e) => {
+      if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) {
+        invalidEdges.push(e.id);
+        return;
+      }
+      incoming.get(e.target).push(e.source);
+      outgoing.get(e.source).push(e.target);
+    });
+
+    // Orphans: non-input nodes with no incoming
+    const orphans = nodes.filter((n) => n.type !== 'input' && (incoming.get(n.id) || []).length === 0).map((n) => n.id);
+
+    // Cycle detection via DFS
+    const visited = new Set();
+    const onstack = new Set();
+    const cycles = new Set();
+
+    function dfs(id) {
+      if (onstack.has(id)) {
+        cycles.add(id);
+        return;
+      }
+      if (visited.has(id)) return;
+      visited.add(id);
+      onstack.add(id);
+      (outgoing.get(id) || []).forEach((nbr) => dfs(nbr));
+      onstack.delete(id);
+    }
+    nodes.forEach((n) => dfs(n.id));
+
+    return { invalidEdges: new Set(invalidEdges), orphans: new Set(orphans), cycles };
+  }, [nodes, edges]);
+
+  // apply validation decorations
+  const validatedNodes = useMemo(() =>
+    decoratedNodes.map((node) => {
+      const hasError = validation.orphans.has(node.id) || validation.cycles.has(node.id);
+      return {
+        ...node,
+        style: hasError ? { border: '2px solid #ef4444' } : node.style,
+        data: {
+          ...node.data,
+          validationError: validation.orphans.has(node.id)
+            ? 'No incoming connections (orphan)'
+            : validation.cycles.has(node.id)
+            ? 'Node is part of a cycle'
+            : undefined,
+        },
+      };
+    }),
+  [decoratedNodes, validation]);
 
   const onConnect = useCallback(
     (params) => {
@@ -175,7 +234,7 @@ export default function WorkflowBuilder({
   return (
     <div ref={wrapperRef} className="h-[680px] min-h-[520px] flex-1">
       <ReactFlow
-        nodes={decoratedNodes}
+        nodes={validatedNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}

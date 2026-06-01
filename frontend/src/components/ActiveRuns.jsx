@@ -43,7 +43,8 @@ export default function ActiveRuns({ onSelectRun }) {
         })
         .catch(() => active && setRuns([]));
     load();
-    const timer = window.setInterval(load, 5000);
+    // Increased polling interval from 5s to 10s to reduce server load
+    const timer = window.setInterval(load, 10000);
     return () => {
       active = false;
       window.clearInterval(timer);

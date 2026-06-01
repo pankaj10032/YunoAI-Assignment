@@ -109,9 +109,18 @@ export function useRunStream(runId, { enabled = true, onSync } = {}) {
       socket.onclose = () => {
         if (closedRef.current) return;
         setConnectionState("reconnecting");
-        appendEvent({ type: "log", message: "Connection interrupted. Reconnecting..." }, true);
+        // Only log reconnection message if we had a successful connection before
+        if (retriesRef.current === 0) {
+          appendEvent({ type: "log", message: "Connection interrupted. Reconnecting..." }, true);
+        }
         const delay = Math.min(2 ** retriesRef.current * 1000, MAX_BACKOFF_MS);
         retriesRef.current += 1;
+        // Stop reconnecting after 5 attempts
+        if (retriesRef.current > 5) {
+          setConnectionState("disconnected");
+          appendEvent({ type: "error", message: "Failed to reconnect after 5 attempts. Please refresh the page." }, true);
+          return;
+        }
         reconnectTimerRef.current = window.setTimeout(connect, delay);
       };
     };

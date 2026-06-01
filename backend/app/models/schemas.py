@@ -35,6 +35,8 @@ class AgentBase(BaseModel):
     memory_enabled: bool = True
     guardrails: dict[str, Any] = Field(default_factory=dict)
     schedule: dict[str, Any] | None = None
+    subscribed_topics: list[str] = Field(default_factory=list)
+    max_concurrent_sessions: int = 5
 
     @field_validator("name")
     @classmethod
@@ -71,6 +73,8 @@ class AgentUpdate(BaseModel):
     memory_enabled: bool | None = None
     guardrails: dict[str, Any] | None = None
     schedule: dict[str, Any] | None = None
+    subscribed_topics: list[str] | None = None
+    max_concurrent_sessions: int | None = None
 
     @field_validator("name")
     @classmethod
@@ -101,6 +105,26 @@ class AgentResponse(AgentBase):
     id: int
     created_at: datetime
     updated_at: datetime
+
+
+class BusMessageResponse(BaseModel):
+    id: int
+    topic: str
+    sender_id: int | None = None
+    receiver_id: int | None = None
+    payload: dict[str, Any] | list[Any] | str | int | float | bool | None
+    status: str
+    retry_count: int
+    error: str | None = None
+    delivered_at: datetime | None = None
+    session_id: str | None = None
+    correlation_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentMessageHistoryResponse(BusMessageResponse):
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _dedupe_channels(channels: list[ChannelConfig]) -> list[ChannelConfig]:
@@ -168,6 +192,27 @@ class WorkflowResponse(WorkflowBase):
     id: int
     created_at: datetime
     updated_at: datetime
+
+
+class ScheduleStatusItem(BaseModel):
+    agent_id: int
+    agent_name: str
+    enabled: bool
+    paused: bool
+    cron: str | None = None
+    timezone: str | None = None
+    last_run_at: datetime | None = None
+    next_run_at: datetime | None = None
+    run_count: int = 0
+    missed_runs: int = 0
+
+
+class ScheduleStatusResponse(BaseModel):
+    schedules: list[ScheduleStatusItem] = Field(default_factory=list)
+
+
+class ScheduleToggleRequest(BaseModel):
+    agent_id: int
 
 
 class MessageBase(BaseModel):

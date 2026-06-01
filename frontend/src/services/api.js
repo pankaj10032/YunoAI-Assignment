@@ -37,6 +37,8 @@ export const generateAgentConfig = (prompt) =>
 export const updateAgent = (id, payload) =>
   api.put(`/api/agents/${id}`, payload).then(unwrap);
 export const deleteAgent = (id) => api.delete(`/api/agents/${id}`).then(unwrap);
+export const getToolList = () => api.get("/api/tools/list").then(unwrap);
+export const reloadTools = () => api.post("/api/tools/reload").then(unwrap);
 
 export const getWorkflows = (params = {}) =>
   api.get("/api/workflows", { params }).then(unwrap);
@@ -88,3 +90,23 @@ export const streamLogs = (runId, handlers = {}) => {
 
   return socket;
 };
+
+// ── Telegram channel ────────────────────────────────────────
+export const getTelegramStatus = () =>
+  api.get("/api/channels/telegram/status").then(unwrap);
+
+export const connectTelegramAgent = (agentId, chatId) =>
+  api.post("/api/channels/telegram/connect", { agent_id: agentId, chat_id: chatId }).then(unwrap);
+
+export const setTelegramWebhook = (webhookUrl) =>
+  api.post("/api/channels/telegram/webhook/set", { webhook_url: webhookUrl }).then(unwrap);
+
+export const deleteTelegramWebhook = () =>
+  api.post("/api/channels/telegram/webhook/delete").then(unwrap);
+
+export const getTelegramWebhookInfo = () =>
+  api.get("/api/channels/telegram/webhook/info").then(unwrap);
+
+export const sendTelegramMessage = (chatId, text) =>
+  api.post("/api/channels/telegram/send", { chat_id: chatId, text }).then(unwrap);
+

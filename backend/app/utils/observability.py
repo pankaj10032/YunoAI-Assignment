@@ -9,6 +9,14 @@ from collections import deque
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any
+import time
+from collections import deque
+import threading
+
+# Telemetry batching queue and lock
+_telemetry_queue: deque[dict[str, Any]] = deque()
+_telemetry_lock = threading.Lock()
+_telemetry_flush_interval = 5.0
 
 correlation_id_var: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 agent_id_var: ContextVar[str | None] = ContextVar("agent_id", default=None)
@@ -113,3 +121,63 @@ class StructuredJSONFormatter(logging.Formatter):
             payload["exception"] = self.formatException(record.exc_info)
         record_log_entry(payload)
         return json.dumps(payload, ensure_ascii=True)
+
+
+def log_event(
+    run_id: int | None = None,
+    agent_id: int | None = None,
+    step: str | None = None,
+    tokens: int | None = None,
+    cost: float | None = None,
+    latency: float | None = None,
+    event_type: str = "usage",
+    source: str = "llm_router",
+) -> None:
+    """Queue a telemetry event to be flushed asynchronously to the DB.
+
+    Fields are sanitized before enqueueing. Events are flushed in batches
+    every `_telemetry_flush_interval` seconds by a background thread.
+    """
+    payload = {
+        "run_id": run_id,
+        "agent_id": agent_id,
+        "step": step,
+        "tokens": tokens,
+        "cost": cost,
+        "latency": latency,
+    }
+    entry = {"event_type": event_type, "source": source, "payload": sanitize_value(payload)}
+    with _telemetry_lock:
+        _telemetry_queue.append(entry)
+
+
+def _flush_telemetry_worker() -> None:
+    from app.models.database import SessionLocal
+    from app.models.models import TelemetryEvent
+
+    while True:
+        try:
+            to_flush: list[dict[str, Any]] = []
+            with _telemetry_lock:
+                while _telemetry_queue:
+                    to_flush.append(_telemetry_queue.popleft())
+            if to_flush:
+                db = SessionLocal()
+                try:
+                    for ev in to_flush:
+                        te = TelemetryEvent(event_type=ev.get("event_type", "usage"), source=ev.get("source", "llm_router"), payload=ev.get("payload", {}))
+                        db.add(te)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                finally:
+                    db.close()
+        except Exception:
+            # ensure worker keeps running despite occasional errors
+            pass
+        time.sleep(_telemetry_flush_interval)
+
+
+# Start background telemetry flush thread (daemon so it doesn't block shutdown)
+_telemetry_thread = threading.Thread(target=_flush_telemetry_worker, daemon=True)
+_telemetry_thread.start()

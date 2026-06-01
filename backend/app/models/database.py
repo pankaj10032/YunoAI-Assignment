@@ -82,11 +82,69 @@ def create_all_tables() -> None:
                     "ON workflow_run_steps (workflow_run_id, step_id)"
                 )
             )
+            agent_columns = connection.execute(text("PRAGMA table_info(agents)")).fetchall()
+            agent_column_names = {column[1] for column in agent_columns}
+            if "last_run_at" not in agent_column_names:
+                connection.execute(
+                    text("ALTER TABLE agents ADD COLUMN last_run_at DATETIME")
+                )
+            if "next_run_at" not in agent_column_names:
+                connection.execute(
+                    text("ALTER TABLE agents ADD COLUMN next_run_at DATETIME")
+                )
+            if "run_count" not in agent_column_names:
+                connection.execute(
+                    text("ALTER TABLE agents ADD COLUMN run_count INTEGER NOT NULL DEFAULT 0")
+                )
+            if "subscribed_topics" not in agent_column_names:
+                connection.execute(
+                    text("ALTER TABLE agents ADD COLUMN subscribed_topics JSON NOT NULL DEFAULT '[]'")
+                )
+            connection.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS scheduler_missed_runs ("
+                    "id INTEGER NOT NULL PRIMARY KEY,"
+                    "agent_id INTEGER NOT NULL,"
+                    "scheduled_at DATETIME NOT NULL,"
+                    "processed_at DATETIME,"
+                    "status VARCHAR(32) NOT NULL DEFAULT 'pending',"
+                    "reason VARCHAR(255),"
+                    "created_at DATETIME NOT NULL,"
+                    "updated_at DATETIME NOT NULL,"
+                    "FOREIGN KEY(agent_id) REFERENCES agents(id) ON DELETE CASCADE"
+                    ")"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_scheduler_missed_runs_agent_id "
+                    "ON scheduler_missed_runs (agent_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_scheduler_missed_runs_status_agent "
+                    "ON scheduler_missed_runs (status, agent_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_scheduler_missed_runs_scheduled_at "
+                    "ON scheduler_missed_runs (scheduled_at)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_scheduler_missed_runs_processed_at "
+                    "ON scheduler_missed_runs (processed_at)"
+                )
+            )
             connection.execute(
                 text(
                     """
                     CREATE TABLE IF NOT EXISTS agent_messages (
                         id INTEGER NOT NULL PRIMARY KEY,
+                        topic VARCHAR(160) NOT NULL,
                         sender_id INTEGER,
                         receiver_id INTEGER,
                         payload JSON NOT NULL,
@@ -94,6 +152,7 @@ def create_all_tables() -> None:
                         retry_count INTEGER NOT NULL DEFAULT 0,
                         error TEXT,
                         delivered_at DATETIME,
+                        idempotency_key VARCHAR(128),
                         created_at DATETIME NOT NULL,
                         updated_at DATETIME NOT NULL,
                         FOREIGN KEY(sender_id) REFERENCES agents(id) ON DELETE SET NULL,
@@ -102,6 +161,12 @@ def create_all_tables() -> None:
                     """
                 )
             )
+            agent_message_columns = connection.execute(text("PRAGMA table_info(agent_messages)")).fetchall()
+            agent_message_column_names = {column[1] for column in agent_message_columns}
+            if "topic" not in agent_message_column_names:
+                connection.execute(text("ALTER TABLE agent_messages ADD COLUMN topic VARCHAR(160) NOT NULL DEFAULT ''"))
+            if "idempotency_key" not in agent_message_column_names:
+                connection.execute(text("ALTER TABLE agent_messages ADD COLUMN idempotency_key VARCHAR(128)"))
             connection.execute(
                 text(
                     """

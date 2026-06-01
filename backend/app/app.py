@@ -5,9 +5,13 @@ import time
 from datetime import datetime, timezone
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request, WebSocket, status
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
+
+from app.middleware.correlation_id import CorrelationIDMiddleware
+from app.services.telemetry import log_event as telemetry_log_event
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -24,11 +28,15 @@ from app.channels.manager import channel_manager
 from app.channels.telegram import telegram_channel
 from app.audit.trail import install_immutability_guards, record_event, run_timeline
 from app.middleware.limiter import QuotaLimiterMiddleware, quota_status
-from app.messaging.queue import consumer_loop, queue_stats
+from app.messaging.bus import consumer_loop, get_message_history, queue_stats, stream_bus_messages
 from app.memory.graph import add_agent_state, cleanup_loop, serialize_graph
 from app.models.database import create_all_tables, get_db
-from app.models.models import Agent, Message, TelemetryEvent, Workflow, WorkflowRun
+from app.models.models import Agent, Message, TelemetryEvent, Workflow, WorkflowRun, AgentMessage
 from app.prompts.template import invalidate_template_cache, preview_prompt
+from app.scheduler.engine import SchedulerEngine
+from app.tools.registry import tool_registry
+from app.runtime.worker_pool import worker_pool
+from app.messaging.p2p_router import MessageRouter, p2p_background_worker
 from app.models.schemas import (
     AgentCreate,
     AgentExecuteRequest,
@@ -38,9 +46,13 @@ from app.models.schemas import (
     PromptPreviewRequest,
     PromptPreviewResponse,
     RunAcceptedResponse,
+    ScheduleStatusItem,
+    ScheduleStatusResponse,
+    ScheduleToggleRequest,
     TelegramConnectRequest,
     TelegramStatusResponse,
     MessageResponse,
+    AgentMessageHistoryResponse,
     WorkflowCreate,
     WorkflowRunRequest,
     WorkflowRunResponse,
@@ -94,6 +106,7 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.exception("Telegram channel initialization failed: %s", exc)
     app.state.message_queue_stop = asyncio.Event()
+    tool_registry.reload()
     app.state.message_queue_task = asyncio.create_task(
         consumer_loop(app.state.message_queue_stop)
     )
@@ -101,12 +114,26 @@ async def lifespan(app: FastAPI):
     app.state.memory_cleanup_task = asyncio.create_task(
         cleanup_loop(app.state.memory_cleanup_stop, interval_sec=30.0)
     )
+    # Start P2P worker
+    app.state.p2p_stop = asyncio.Event()
+    app.state.p2p_task = asyncio.create_task(
+        p2p_background_worker(app.state.p2p_stop)
+    )
+    worker_pool.start()
+    app.state.scheduler = SchedulerEngine()
+    # await app.state.scheduler.start()
     logger.info("Database schema initialized")
     yield
+    try:
+        await app.state.scheduler.shutdown()
+    except Exception:
+        logger.exception("Scheduler shutdown failed")
     app.state.message_queue_stop.set()
     app.state.message_queue_task.cancel()
     app.state.memory_cleanup_stop.set()
     app.state.memory_cleanup_task.cancel()
+    app.state.p2p_stop.set()
+    app.state.p2p_task.cancel()
     try:
         await app.state.message_queue_task
     except asyncio.CancelledError:
@@ -115,6 +142,11 @@ async def lifespan(app: FastAPI):
         await app.state.memory_cleanup_task
     except asyncio.CancelledError:
         pass
+    try:
+        await app.state.p2p_task
+    except asyncio.CancelledError:
+        pass
+    await worker_pool.shutdown()
     if telegram_channel.connected:
         await telegram_channel.disconnect()
     logger.info("Shutting down AI Orchestrator API")
@@ -152,6 +184,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(QuotaLimiterMiddleware)
+app.add_middleware(CorrelationIDMiddleware)
 
 
 @app.exception_handler(Exception)
@@ -169,6 +202,23 @@ async def validation_exception_handler(_, exc: ValidationError):
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": exc.errors},
     )
+
+
+@app.post("/api/telemetry", tags=["observability"])
+async def ingest_telemetry(request: Request):
+    """Accept UI-side telemetry events (e.g. ErrorBoundary crash reports)."""
+    try:
+        body = await request.json()
+        telemetry_log_event(
+            event_type=body.get("event_type", "ui_event"),
+            source=body.get("source", "frontend"),
+            payload=body.get("payload", {}),
+            correlation_id=getattr(request.state, "correlation_id", None),
+        )
+        return {"status": "queued"}
+    except Exception as exc:
+        logger.warning("Telemetry ingest error: %s", exc)
+        return JSONResponse(status_code=400, content={"error": str(exc)})
 
 
 @app.get("/health", tags=["system"])
@@ -189,6 +239,16 @@ async def root():
     }
 
 
+@app.get("/api/tools/list", tags=["tools"])
+async def list_tools():
+    return tool_registry.list()
+
+
+@app.post("/api/tools/reload", tags=["tools"])
+async def reload_tools():
+    return tool_registry.reload()
+
+
 @app.post(
     "/agents",
     response_model=AgentResponse,
@@ -196,6 +256,31 @@ async def root():
     tags=["agents"],
 )
 async def create_agent(payload: AgentCreate, db: Session = Depends(get_db)):
+    validate_agent_config(payload.model_dump())
+    agent = Agent(**payload.model_dump())
+    db.add(agent)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Agent named '{payload.name}' already exists",
+        ) from exc
+    db.refresh(agent)
+    invalidate_template_cache(f"agent:{agent.id}")
+    add_agent_state(agent, db=db)
+    return agent
+
+
+@app.post(
+    "/api/agents",
+    response_model=AgentResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["agents"],
+)
+async def create_agent_api(payload: AgentCreate, db: Session = Depends(get_db)):
+    """API endpoint for creating agents - delegates to create_agent logic"""
     validate_agent_config(payload.model_dump())
     agent = Agent(**payload.model_dump())
     db.add(agent)
@@ -267,6 +352,7 @@ def _allow_generation_request(client_id: str) -> bool:
 
 
 @app.get("/agents/{agent_id}", response_model=AgentResponse, tags=["agents"])
+@app.get("/api/agents/{agent_id}", response_model=AgentResponse, tags=["agents"])
 async def get_agent(agent_id: int, db: Session = Depends(get_db)):
     agent = db.get(Agent, agent_id)
     if not agent:
@@ -278,6 +364,7 @@ async def get_agent(agent_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/agents/{agent_id}", response_model=AgentResponse, tags=["agents"])
+@app.put("/api/agents/{agent_id}", response_model=AgentResponse, tags=["agents"])
 async def update_agent(
     agent_id: int,
     payload: AgentUpdate,
@@ -315,7 +402,29 @@ async def update_agent(
     return agent
 
 
+@app.get("/api/schedules/status", response_model=ScheduleStatusResponse, tags=["schedules"])
+async def schedule_status():
+    return {"schedules": app.state.scheduler.get_schedule_status()}
+
+
+@app.post("/api/schedules/pause", response_model=ScheduleStatusItem, tags=["schedules"])
+async def pause_schedule(payload: ScheduleToggleRequest):
+    try:
+        return app.state.scheduler.pause_agent_schedule(payload.agent_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@app.post("/api/schedules/resume", response_model=ScheduleStatusItem, tags=["schedules"])
+async def resume_schedule(payload: ScheduleToggleRequest):
+    try:
+        return app.state.scheduler.resume_agent_schedule(payload.agent_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
 @app.delete("/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["agents"])
+@app.delete("/api/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["agents"])
 async def delete_agent(agent_id: int, db: Session = Depends(get_db)):
     agent = db.get(Agent, agent_id)
     if not agent:
@@ -373,13 +482,21 @@ async def execute_agent(
         {"agent_id": agent_ref, "run_id": run.id},
         db=db,
     )
-    background_tasks.add_task(
+    background_tasks_placeholder = background_tasks  # keep signature
+    submitted = await worker_pool.submit(
+        run.id,
         execute_agent_background,
         run.id,
         agent_ref,
         payload.task_description,
         get_request_context().get("correlation_id"),
+        priority=0
     )
+    if not submitted:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Execution queue is full. Please try again later."
+        )
     return {
         "run_id": run.id,
         "status": run.status,
@@ -406,6 +523,15 @@ async def create_workflow(payload: WorkflowCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(workflow)
     return workflow
+
+
+@app.post("/api/workflows/validate", tags=["workflows"])
+async def validate_workflow_endpoint(payload: WorkflowCreate):
+    try:
+        validate_workflow(payload.nodes, payload.edges)
+        return {"valid": True, "errors": []}
+    except ValidationError as exc:
+        return {"valid": False, "errors": exc.errors}
 
 
 @app.get("/api/workflows", response_model=list[WorkflowResponse], tags=["workflows"])
@@ -505,13 +631,21 @@ async def run_workflow(
         {"run_id": run.id},
         db=db,
     )
-    background_tasks.add_task(
+    background_tasks_placeholder = background_tasks  # keep signature
+    submitted = await worker_pool.submit(
+        run.id,
         execute_workflow_background,
         run.id,
         workflow.id,
         payload.input_data,
         get_request_context().get("correlation_id"),
+        priority=1
     )
+    if not submitted:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Execution queue is full. Please try again later."
+        )
     return {
         "run_id": run.id,
         "status": run.status,
@@ -549,14 +683,22 @@ async def resume_workflow(
             detail="Only paused, failed, or interrupted workflow runs can be resumed",
         )
 
-    background_tasks.add_task(
+    background_tasks_placeholder = background_tasks  # keep signature
+    submitted = await worker_pool.submit(
+        run.id,
         resume_workflow_background,
         run.id,
         workflow.id,
         run.input_data or {},
         payload.resume_from_step,
         get_request_context().get("correlation_id"),
+        priority=1
     )
+    if not submitted:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Execution queue is full. Please try again later."
+        )
     return {
         "run_id": run.id,
         "status": run.status,
@@ -590,13 +732,21 @@ async def rerun_workflow(
 
     replay_input = original.input_data or {}
     run = create_workflow_run(db, workflow.id, replay_input)
-    background_tasks.add_task(
+    background_tasks_placeholder = background_tasks  # keep signature
+    submitted = await worker_pool.submit(
+        run.id,
         execute_workflow_background,
         run.id,
         workflow.id,
         replay_input,
         get_request_context().get("correlation_id"),
+        priority=1
     )
+    if not submitted:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Execution queue is full. Please try again later."
+        )
     return {
         "run_id": run.id,
         "status": run.status,
@@ -714,6 +864,16 @@ async def messaging_queue_stats(db: Session = Depends(get_db)):
     return queue_stats(db)
 
 
+@app.get("/api/messaging/history", response_model=list[AgentMessageHistoryResponse], tags=["messaging"])
+async def messaging_history(agent_id: int, limit: int = Query(default=200, ge=1, le=1000)):
+    return get_message_history(agent_id, limit=limit)
+
+
+@app.websocket("/ws/messages")
+async def message_bus_websocket(websocket: WebSocket, agent_id: int):
+    await stream_bus_messages(websocket, agent_id)
+
+
 @app.get("/api/quotas/status", tags=["quotas"])
 async def quota_status_endpoint(
     entity_id: str | None = None,
@@ -786,6 +946,105 @@ async def telegram_status():
     return channel.status() if channel else telegram_channel.status()
 
 
+# ── Telegram webhook management ────────────────────────────────────────────────
+
+class TelegramWebhookSetRequest(BaseModel):
+    webhook_url: str
+
+class TelegramSendRequest(BaseModel):
+    chat_id: str
+    text: str
+
+
+
+
+@app.post("/api/channels/telegram/webhook/set", tags=["channels"])
+async def telegram_set_webhook(payload: TelegramWebhookSetRequest):
+    """Register a webhook URL with the Telegram Bot API."""
+    if not settings.telegram_bot_token:
+        raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
+    if not telegram_channel.application:
+        raise HTTPException(status_code=503, detail="Telegram channel not initialized")
+    
+    try:
+        result = await telegram_channel.set_webhook(payload.webhook_url)
+        return {"success": True, "webhook_url": payload.webhook_url, "result": result}
+    except Exception as exc:
+        logger.exception("Failed to set Telegram webhook")
+        raise HTTPException(status_code=500, detail=f"Failed to set webhook: {exc}") from exc
+
+
+@app.post("/api/channels/telegram/webhook/delete", tags=["channels"])
+async def telegram_delete_webhook():
+    """Remove the current Telegram webhook."""
+    if not settings.telegram_bot_token:
+        raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
+    if not telegram_channel.application:
+        raise HTTPException(status_code=503, detail="Telegram channel is not initialised")
+    try:
+        await telegram_channel.application.bot.delete_webhook()
+        logger.info("Telegram webhook deleted")
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/channels/telegram/webhook/info", tags=["channels"])
+async def telegram_webhook_info():
+    """Fetch current webhook info from Telegram Bot API."""
+    if not settings.telegram_bot_token:
+        raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
+    if not telegram_channel.application:
+        raise HTTPException(status_code=503, detail="Telegram channel is not initialised")
+    try:
+        info = await telegram_channel.application.bot.get_webhook_info()
+        return {
+            "url": info.url,
+            "has_custom_certificate": info.has_custom_certificate,
+            "pending_update_count": info.pending_update_count,
+            "last_error_message": info.last_error_message,
+            "last_error_date": info.last_error_date.isoformat() if info.last_error_date else None,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/channels/telegram/send", tags=["channels"])
+async def telegram_send_message(payload: TelegramSendRequest):
+    """Send a message to a Telegram chat."""
+    if not settings.telegram_bot_token:
+        raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
+    
+    # Ensure telegram channel is initialized and connected
+    if not telegram_channel.application:
+        try:
+            telegram_channel.initialize(settings.telegram_bot_token)
+            await telegram_channel.connect()
+            logger.info("Telegram channel initialized for send operation")
+        except Exception as init_exc:
+            logger.exception("Failed to initialize Telegram channel")
+            raise HTTPException(status_code=503, detail=f"Telegram channel initialization failed: {str(init_exc)}") from init_exc
+    
+    # Ensure the channel is connected
+    if not telegram_channel.connected:
+        try:
+            await telegram_channel.connect()
+            logger.info("Telegram channel connected for send operation")
+        except Exception as conn_exc:
+            logger.exception("Failed to connect Telegram channel")
+            raise HTTPException(status_code=503, detail=f"Telegram channel connection failed: {str(conn_exc)}") from conn_exc
+    
+    try:
+        await telegram_channel.send_message(payload.chat_id, payload.text)
+        logger.info("Telegram message sent successfully", extra={"chat_id": payload.chat_id})
+        return {"ok": True, "chat_id": payload.chat_id, "message": "Message sent successfully"}
+    except Exception as exc:
+        logger.exception("Failed to send Telegram message", extra={"chat_id": payload.chat_id, "error": str(exc)})
+        raise HTTPException(status_code=500, detail=f"Failed to send message: {str(exc)}") from exc
+
+
+
+
 @app.get("/api/logs/search", tags=["observability"])
 async def search_logs(correlation_id: str = Query(..., min_length=8)):
     from app.models.database import SessionLocal
@@ -819,3 +1078,63 @@ async def search_logs(correlation_id: str = Query(..., min_length=8)):
 @app.get("/api/audit/run/{run_id}", tags=["audit"])
 async def audit_run(run_id: int, db: Session = Depends(get_db)):
     return {"run_id": run_id, "events": run_timeline(run_id, db=db)}
+
+
+# --- Runtime Worker Pool Endpoints ---
+
+@app.get("/api/runtime/status", tags=["runtime"])
+async def get_runtime_status():
+    return worker_pool.get_status()
+
+
+@app.post("/api/runtime/pause", tags=["runtime"])
+async def pause_runtime():
+    worker_pool.paused = True
+    return {"status": "paused", "message": "Worker pool execution paused successfully"}
+
+
+@app.post("/api/runtime/resume", tags=["runtime"])
+async def resume_runtime():
+    worker_pool.paused = False
+    return {"status": "resumed", "message": "Worker pool execution resumed successfully"}
+
+
+# --- P2P Messaging Endpoints ---
+
+
+class P2PMessageSendRequest(BaseModel):
+    sender: int
+    receiver: int
+    content: str
+    session_id: str | None = None
+
+
+@app.post("/api/messaging/send", tags=["messaging"])
+async def send_p2p_message(payload: P2PMessageSendRequest):
+    correlation_id = get_request_context().get("correlation_id") or new_correlation_id()
+    msg = await MessageRouter.send_message(
+        sender_id=payload.sender,
+        receiver_id=payload.receiver,
+        content=payload.content,
+        session_id=payload.session_id,
+        correlation_id=correlation_id
+    )
+    return {
+        "message_id": msg.id,
+        "correlation_id": msg.correlation_id,
+        "session_id": msg.session_id,
+        "status": msg.status
+    }
+
+
+@app.get("/api/messages/session/{session_id}", tags=["messaging"])
+async def get_session_messages(session_id: str, db: Session = Depends(get_db)):
+    return db.query(AgentMessage).filter(AgentMessage.session_id == session_id).order_by(AgentMessage.created_at.asc()).all()
+
+
+@app.post("/api/messaging/ack/{message_id}", tags=["messaging"])
+async def ack_message(message_id: int):
+    success = await MessageRouter.acknowledge_message(message_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return {"status": "acked"}

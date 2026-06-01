@@ -36,6 +36,11 @@ class Agent(Base, TimestampMixin):
     memory_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     guardrails: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     schedule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    subscribed_topics: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    max_concurrent_sessions: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    run_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     sent_messages: Mapped[list["Message"]] = relationship(
         "Message",
@@ -55,6 +60,17 @@ class Agent(Base, TimestampMixin):
             if isinstance(channel, dict) and channel.get("name") == "telegram":
                 return True
         return False
+
+
+class SchedulerMissedRun(Base, TimestampMixin):
+    __tablename__ = "scheduler_missed_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("agents.id", ondelete="CASCADE"), nullable=False, index=True)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class Workflow(Base, TimestampMixin):
@@ -141,6 +157,7 @@ class AgentMessage(Base, TimestampMixin):
     __tablename__ = "agent_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    topic: Mapped[str] = mapped_column(String(160), default="default", nullable=False, index=True)
     sender_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("agents.id", ondelete="SET NULL"),
@@ -161,6 +178,9 @@ class AgentMessage(Base, TimestampMixin):
     retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    session_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
 
 
 class DeadLetterMessage(Base, TimestampMixin):

@@ -11,6 +11,7 @@ from app.models.models import (
     MemoryEdge,
     MemoryNode,
     QuotaCounter,
+    SchedulerMissedRun,
     TelemetryEvent,
     Workflow,
     WorkflowRun,
@@ -28,6 +29,7 @@ def db():
     session.query(MemoryEdge).delete()
     session.query(MemoryNode).delete()
     session.query(QuotaCounter).delete()
+    session.query(SchedulerMissedRun).delete()
     session.query(AgentMessage).delete()
     session.query(WorkflowRunStep).delete()
     session.query(Message).delete()
@@ -44,6 +46,7 @@ def db():
         session.query(MemoryEdge).delete()
         session.query(MemoryNode).delete()
         session.query(QuotaCounter).delete()
+        session.query(SchedulerMissedRun).delete()
         session.query(AgentMessage).delete()
         session.query(WorkflowRunStep).delete()
         session.query(Message).delete()
