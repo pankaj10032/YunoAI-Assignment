@@ -30,6 +30,7 @@ htmlcov/
 # Documentation
 *.md
 !README.md
+!ARCHITECTURE.md
 
 # Environment
 .env

@@ -6,9 +6,21 @@ This file serves as the entry point for the Hugging Face Space
 import gradio as gr
 import os
 import sys
+import threading
+import uvicorn
+import time
+from contextlib import asynccontextmanager
 
 # Add backend to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
+
+def start_fastapi_server():
+    """Start the FastAPI backend server in a separate thread"""
+    try:
+        from backend.app.app import app
+        uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    except Exception as e:
+        print(f"Failed to start FastAPI server: {e}")
 
 def create_interface():
     """Create the Gradio interface for the AI Orchestrator"""
@@ -27,6 +39,8 @@ def create_interface():
         
         ## API Documentation
         The FastAPI backend is available at `/api/docs` for full API documentation.
+        
+        **Backend Status**: FastAPI server running on port 8000
         """)
         
         with gr.Tab("Quick Start"):
@@ -60,8 +74,8 @@ def create_interface():
             
             Visit the following endpoints for interactive API documentation:
             
-            - **Swagger UI**: `/docs`
-            - **ReDoc**: `/redoc`
+            - **Swagger UI**: `/docs` (FastAPI backend)
+            - **ReDoc**: `/redoc` (FastAPI backend)
             
             ### Example: Create an Agent
             
@@ -123,6 +137,38 @@ def create_interface():
             ```
             """)
         
+        with gr.Tab("Health Check"):
+            with gr.Row():
+                health_output = gr.JSON(label="System Status")
+                check_health_btn = gr.Button("Check Health", variant="primary")
+            
+            def check_system_health():
+                try:
+                    import requests
+                    response = requests.get("http://localhost:8000/health", timeout=5)
+                    if response.status_code == 200:
+                        return {
+                            "status": "✅ Healthy",
+                            "backend": "FastAPI server running",
+                            "frontend": "Gradio interface active",
+                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                    else:
+                        return {
+                            "status": "⚠️ Backend Issues",
+                            "error": f"HTTP {response.status_code}",
+                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                except Exception as e:
+                    return {
+                        "status": "❌ Backend Unavailable",
+                        "error": str(e),
+                        "note": "FastAPI server may be starting up...",
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+            
+            check_health_btn.click(check_system_health, outputs=health_output)
+        
         with gr.Tab("About"):
             gr.Markdown("""
             ### About AI Orchestrator
@@ -155,10 +201,24 @@ def create_interface():
     return demo
 
 if __name__ == "__main__":
-    # Create and launch the interface
+    # Start FastAPI server in background thread
+    print("🚀 Starting AI Orchestrator...")
+    print("📡 Starting FastAPI backend server...")
+    
+    # Start FastAPI in a daemon thread
+    fastapi_thread = threading.Thread(target=start_fastapi_server, daemon=True)
+    fastapi_thread.start()
+    
+    # Give FastAPI time to start
+    print("⏳ Waiting for backend to initialize...")
+    time.sleep(3)
+    
+    # Create and launch the Gradio interface
+    print("🎨 Starting Gradio frontend...")
     demo = create_interface()
     demo.launch(
         server_name="0.0.0.0",
         server_port=7860,
-        show_api=False
+        show_api=False,
+        share=False
     )

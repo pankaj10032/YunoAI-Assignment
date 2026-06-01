@@ -8,13 +8,17 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
-COPY backend/requirements.txt .
+# Copy requirements files
+COPY requirements.txt .
+COPY backend/requirements.txt backend_requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --user -r requirements.txt
+# Install Python dependencies for both frontend and backend
+RUN pip install --no-cache-dir --user \
+    -r requirements.txt \
+    -r backend_requirements.txt
 
 # Production stage
 FROM python:3.11-slim
@@ -34,7 +38,7 @@ COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
 
 # Copy application code
-COPY backend/app /app/app
+COPY . /app
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
@@ -46,10 +50,10 @@ RUN useradd -m -u 1000 appuser && \
 # Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 8000
+# Expose ports (Gradio on 7860, FastAPI on 8000)
+EXPOSE 7860 8000
 
-# Health check
+# Health check for FastAPI backend
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
@@ -60,5 +64,5 @@ ENV PYTHONUNBUFFERED=1 \
     ENVIRONMENT=production \
     LOG_LEVEL=INFO
 
-# Run the application
-CMD ["uvicorn", "app.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application (Gradio will start FastAPI in background)
+CMD ["python", "app.py"]

@@ -1,36 +1,8 @@
+# 🚀 GitHub to Hugging Face CI/CD Setup
+
+This repository contains the complete setup for automatic CI/CD deployment from GitHub to Hugging Face Spaces.
+
 ---
-title: AI-Orchestrator
-emoji: 🤖
-colorFrom: blue
-colorTo: purple
-sdk: gradio
-sdk_version: "4.44.0"
-app_file: app.py
-pinned: false
-license: mit
-python_version: "3.11"
----
-
-# 🤖 AI Orchestrator
-
-A powerful system for creating, configuring, and orchestrating collaborative AI agents with FastAPI backend and Gradio frontend.
-
-## 🚀 Features
-
-- **Agent Management**: Create and configure AI agents with different capabilities
-- **Workflow Orchestration**: Design complex multi-agent workflows  
-- **Real-time Monitoring**: Track agent execution and communication
-- **Telegram Integration**: Connect agents to Telegram channels
-- **RESTful API**: Full FastAPI backend with interactive documentation
-- **Memory Management**: Persistent agent memory and state
-- **Audit Trail**: Complete logging and observability
-
-## 🎯 Quick Start
-
-1. **Visit the Space**: The Gradio interface provides an easy way to explore the system
-2. **API Documentation**: Access `/docs` for interactive API documentation
-3. **Create Agents**: Use the API to create and configure AI agents
-4. **Design Workflows**: Connect multiple agents in collaborative workflows
 
 ## 📚 Documentation
 

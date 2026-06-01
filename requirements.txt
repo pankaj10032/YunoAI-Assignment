@@ -8,6 +8,7 @@ uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
 python-dotenv==1.0.1
 httpx==0.28.1
+requests==2.32.3
 
 # AI/ML Dependencies
 crewai==0.80.0
@@ -29,5 +30,5 @@ setuptools==75.6.0
 pytest==8.3.4
 pytest-cov==6.0.0
 
-# Hugging Face Hub
-huggingface-hub>=0.20.0
+# Hugging Face Hub - pinned to version compatible with gradio 4.44.0
+huggingface-hub==0.23.5
