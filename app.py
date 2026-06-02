@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "7860"))
-    log_level = os.getenv("LOG_LEVEL", "info")
+    log_level = os.getenv("LOG_LEVEL", "info").lower()
 
     print("🚀 Starting AI Orchestrator backend")
     print(f"📡 Listening on http://{host}:{port}")

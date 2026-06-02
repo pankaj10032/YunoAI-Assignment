@@ -60,6 +60,11 @@ export function useRunStream(runId, { enabled = true, onSync } = {}) {
     [runId],
   );
 
+  const onSyncRef = useRef(onSync);
+  useEffect(() => {
+    onSyncRef.current = onSync;
+  }, [onSync]);
+
   const syncLatest = useCallback(async () => {
     if (!runId) return;
     const [latestRun, latestMessages] = await Promise.all([
@@ -68,8 +73,8 @@ export function useRunStream(runId, { enabled = true, onSync } = {}) {
     ]);
     if (latestRun) setRun(latestRun);
     setMessages(latestMessages);
-    onSync?.({ run: latestRun, messages: latestMessages });
-  }, [onSync, runId]);
+    onSyncRef.current?.({ run: latestRun, messages: latestMessages });
+  }, [runId]);
 
   useEffect(() => {
     if (!runId || !enabled) {
