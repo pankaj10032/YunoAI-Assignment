@@ -1,5 +1,5 @@
 # Gradio Interface (Hugging Face Spaces)
-gradio==4.44.0
+gradio==6.15.2
 
 # FastAPI Backend Dependencies
 fastapi==0.115.6
@@ -30,5 +30,5 @@ setuptools==75.6.0
 pytest==8.3.4
 pytest-cov==6.0.0
 
-# Hugging Face Hub - pinned to version compatible with gradio 4.44.0
-huggingface-hub==0.23.5
+# Hugging Face Hub
+huggingface-hub>=0.30.0
