@@ -75,7 +75,9 @@ ENV PYTHONUNBUFFERED=1 \
     APP_NAME="AI Orchestrator" \
     ENVIRONMENT=production \
     LOG_LEVEL=INFO \
-    PORT=7860
+    PORT=7860 \
+    CORS_ORIGINS="*" \
+    FRONTEND_URL="https://huggingface.co/spaces/Pankaj10346/AI-Orchestrator"
 
 # Run the backend application
 CMD ["python", "app.py"]

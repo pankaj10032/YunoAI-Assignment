@@ -1,11 +1,19 @@
 from functools import lru_cache
 import os
+from pathlib import Path
 from typing import List
 
 from dotenv import load_dotenv
 
-
-load_dotenv()
+# Load .env.production first (base config for production deployments),
+# then .env as an override (local development).  load_dotenv does NOT
+# overwrite variables already present in os.environ, so the order gives
+# .env higher priority than .env.production, and real env-vars highest.
+_root = Path(__file__).resolve().parent.parent.parent  # project root
+_env_prod = _root / ".env.production"
+if _env_prod.is_file():
+    load_dotenv(_env_prod)
+load_dotenv()  # loads .env if present (won't overwrite what's already set)
 
 
 def _csv(value: str) -> List[str]:
