@@ -11,14 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements files
+# Copy requirements file
 COPY requirements.txt .
-COPY backend/requirements.txt backend_requirements.txt
 
-# Install Python dependencies for both frontend and backend
+# Install Python dependencies for the app
 RUN pip install --no-cache-dir --user \
-    -r requirements.txt \
-    -r backend_requirements.txt
+    -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim

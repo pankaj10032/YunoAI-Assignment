@@ -3,9 +3,9 @@ title: AI Orchestrator
 emoji: "🤖"
 colorFrom: blue
 colorTo: green
-sdk: gradio
+sdk: docker
 python_version: "3.11"
-app_file: app.py
+app_file: Dockerfile
 pinned: false
 ---
 
@@ -56,6 +56,15 @@ env:
 ```bash
 git push origin main
 ```
+
+### 6. Docker deployment (optional)
+Build locally and run the full app in Docker:
+```bash
+docker build -t ai-orchestrator .
+docker run --rm -p 7860:7860 ai-orchestrator
+```
+
+Visit `http://localhost:7860` to open the Gradio app.
 
 ---
 
