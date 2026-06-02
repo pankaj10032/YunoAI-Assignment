@@ -109,7 +109,9 @@ export default function Monitor() {
         const isSystemNoise = event.channel === "internal" && 
           (event.message?.includes("Connection interrupted") || 
            event.message?.includes("Reconnecting") ||
-           event.message?.includes("Connected to run"));
+           event.message?.includes("Connected to run") ||
+           event.message?.includes("WebSocket connection error") ||
+           event.message?.includes("Failed to reconnect"));
         return agentMatches && channelMatches && levelMatches && !isSystemNoise;
       }),
     [filters, messageEvents],
