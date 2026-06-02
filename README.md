@@ -1,3 +1,14 @@
+---
+title: AI Orchestrator
+emoji: "🤖"
+colorFrom: blue
+colorTo: green
+sdk: gradio
+python_version: "3.11"
+app_file: app.py
+pinned: false
+---
+
 # 🚀 GitHub to Hugging Face CI/CD Setup
 
 This repository contains the complete setup for automatic CI/CD deployment from GitHub to Hugging Face Spaces.
