@@ -1,11 +1,14 @@
 import axios from "axios";
 import { notifyApiError } from "../components/ErrorToast";
 
+// Use strict undefined check so that VITE_API_BASE_URL="" (empty string for
+// relative URLs in production Docker builds) is NOT overridden by the fallback.
+const envUrl = import.meta.env.VITE_API_BASE_URL;
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  envUrl !== undefined && envUrl !== null ? envUrl : "http://localhost:8000";
 
 export const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_BASE_URL || undefined,
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",
@@ -74,7 +77,15 @@ export const stopWorkflowRun = (runId) =>
   api.post(`/api/runs/${runId}/stop`).then(unwrap);
 
 export const streamLogs = (runId, handlers = {}) => {
-  const wsBase = API_BASE_URL.replace(/^http/, "ws");
+  // Build WebSocket URL: if API_BASE_URL is absolute use it, otherwise
+  // derive from the current page location so it works on any deployment.
+  let wsBase;
+  if (API_BASE_URL && /^https?:\/\//.test(API_BASE_URL)) {
+    wsBase = API_BASE_URL.replace(/^http/, "ws");
+  } else {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    wsBase = `${proto}//${window.location.host}${API_BASE_URL}`;
+  }
   const socket = new WebSocket(`${wsBase}/ws/run/${runId}`);
 
   socket.onopen = handlers.onOpen || null;

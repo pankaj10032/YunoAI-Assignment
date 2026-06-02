@@ -1,6 +1,35 @@
+import asyncio
+
+import pytest
+
 from app.models.models import Message, Workflow, WorkflowRun, WorkflowRunStep
 
 from .conftest import create_agent
+
+
+@pytest.fixture(autouse=True)
+def _sync_worker_pool(monkeypatch):
+    """Make worker_pool.submit execute the function synchronously so tests
+    don't have to race against background tasks."""
+
+    async def _submit_sync(_self, _run_id, func, *args, priority=1, **kwargs):
+        if asyncio.iscoroutinefunction(func):
+            await func(*args, **kwargs)
+        else:
+            func(*args, **kwargs)
+        return True
+
+    monkeypatch.setattr(
+        "app.runtime.worker_pool.WorkerPool.submit", _submit_sync
+    )
+
+    # Silence event broker publish so tests don't fail on missing subscribers
+    async def _noop_publish(_self, _run_id, _event):
+        pass
+
+    monkeypatch.setattr(
+        "app.agents.executor.RunEventBroker.publish", _noop_publish
+    )
 
 
 def workflow_payload(agent_id):
