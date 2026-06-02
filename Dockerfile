@@ -1,4 +1,14 @@
-# Multi-stage build for production-ready AI Orchestrator
+# Stage 1: Build the frontend (React/Vite)
+FROM node:20-slim as frontend-builder
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+# Set API URL to empty so it defaults to relative path in production
+ENV VITE_API_BASE_URL=""
+RUN npm run build
+
+# Stage 2: Build the Python backend
 FROM python:3.11-slim as builder
 
 # Set working directory
@@ -39,6 +49,9 @@ ENV PATH=/usr/local/bin:$PATH \
 # Copy application code
 COPY . /app
 
+# Copy built frontend assets to serve them via FastAPI
+COPY --from=frontend-builder /frontend/dist /app/static
+
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
@@ -49,19 +62,20 @@ RUN useradd -m -u 1000 appuser && \
 # Switch to non-root user
 USER appuser
 
-# Expose FastAPI backend port
-EXPOSE 8000
+# Expose FastAPI backend port (Hugging Face default)
+EXPOSE 7860
 
-# Health check for FastAPI backend
+# Health check for FastAPI backend on port 7860
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:7860/health || exit 1
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     APP_NAME="AI Orchestrator" \
     ENVIRONMENT=production \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=INFO \
+    PORT=7860
 
 # Run the backend application
 CMD ["python", "app.py"]

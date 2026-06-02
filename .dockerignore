@@ -42,7 +42,6 @@ data/
 *.sqlite
 
 # Frontend
-frontend/
 node_modules/
 
 # Misc

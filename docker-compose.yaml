@@ -9,6 +9,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - PORT=8000
       - APP_NAME=AI Orchestrator
       - ENVIRONMENT=development
       - LOG_LEVEL=INFO

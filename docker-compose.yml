@@ -7,6 +7,7 @@ services:
       - path: .env
         required: false
     environment:
+      PORT: 8000
       DATABASE_URL: sqlite:///./data/ai_orchestrator.db
       FRONTEND_URL: http://localhost:3000
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173

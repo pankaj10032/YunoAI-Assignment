@@ -230,13 +230,7 @@ async def health_check():
     }
 
 
-@app.get("/", tags=["system"])
-async def root():
-    return {
-        "service": settings.app_name,
-        "status": "ok",
-        "docs_url": "/docs",
-    }
+# Root endpoint removed to allow React frontend serving from `/`
 
 
 @app.get("/api/tools/list", tags=["tools"])
@@ -1138,3 +1132,25 @@ async def ack_message(message_id: int):
     if not success:
         raise HTTPException(status_code=404, detail="Message not found")
     return {"status": "acked"}
+
+
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Mount static files for assets if they exist (used by Vite)
+if os.path.isdir("/app/static/assets"):
+    app.mount("/assets", StaticFiles(directory="/app/static/assets"), name="assets")
+
+# Catch-all route to serve the React UI (must be at the end of all other routes)
+@app.get("/{full_path:path}", tags=["frontend"])
+async def serve_frontend(full_path: str):
+    static_dir = "/app/static"
+    path = os.path.join(static_dir, full_path)
+    if os.path.isfile(path):
+        return FileResponse(path)
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
