@@ -13,15 +13,19 @@ async def test_worker_pool_concurrency_and_priority(db):
         executed.append(val)
         return val
 
-    # Submit 3 tasks with different priorities
-    await worker_pool.submit(1001, sample_task, 3, priority=2) # Low
-    await worker_pool.submit(1002, sample_task, 1, priority=0) # High
-    await worker_pool.submit(1003, sample_task, 2, priority=1) # Normal
+    worker_pool.start()
+    try:
+        # Submit 3 tasks with different priorities
+        await worker_pool.submit(1001, sample_task, 3, priority=2) # Low
+        await worker_pool.submit(1002, sample_task, 1, priority=0) # High
+        await worker_pool.submit(1003, sample_task, 2, priority=1) # Normal
 
-    await asyncio.sleep(1.0)
-    assert len(executed) >= 3
-    # High priority task should execute first
-    assert executed[0] == 1
+        await asyncio.sleep(1.0)
+        assert len(executed) >= 3
+        # High priority task should execute first
+        assert executed[0] == 1
+    finally:
+        await worker_pool.shutdown()
 
 
 @pytest.mark.asyncio

@@ -69,16 +69,21 @@ class WorkerPool:
     def __init__(self, max_workers: int = 5, queue_size: int = 100):
         self.max_workers = max_workers
         self.queue_size = queue_size
-        self.queue = asyncio.PriorityQueue(maxsize=queue_size)
+        self.queue: Optional[asyncio.PriorityQueue] = None
         self.workers: list[asyncio.Task] = []
         self.active_tasks = 0
         self.paused = False
         self.running = False
         self.checkpoints: Dict[int, Dict[str, Any]] = {}
 
+    def _ensure_queue(self):
+        if self.queue is None:
+            self.queue = asyncio.PriorityQueue(maxsize=self.queue_size)
+
     def start(self):
         if self.running:
             return
+        self._ensure_queue()
         self.running = True
         for i in range(self.max_workers):
             self.workers.append(asyncio.create_task(self._worker_loop(i)))
@@ -92,12 +97,14 @@ class WorkerPool:
             worker.cancel()
         await asyncio.gather(*self.workers, return_exceptions=True)
         self.workers = []
+        self.queue = None
         logger.info("WorkerPool shut down completed")
 
     async def submit(self, run_id: int, func: Callable, *args, priority: int = 1, **kwargs) -> bool:
         """Submit a task to the priority queue.
         priority: 0 (high), 1 (normal), 2 (low)
         """
+        self._ensure_queue()
         if self.queue.full():
             logger.warning("Queue full: rejecting task execution for run_id %s", run_id)
             return False

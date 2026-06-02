@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 
 # Install Python dependencies for the app
-RUN pip install --no-cache-dir --user \
-    -r requirements.txt
+RUN python -m pip install --upgrade pip && \
+    python -m pip install --no-cache-dir -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim
@@ -30,10 +30,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python dependencies from builder
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /usr/local /usr/local
 
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
+# Make sure scripts from system site are usable
+ENV PATH=/usr/local/bin:$PATH \
+    PYTHONPATH=/usr/local/lib/python3.11/site-packages:$PYTHONPATH
 
 # Copy application code
 COPY . /app
@@ -48,8 +49,8 @@ RUN useradd -m -u 1000 appuser && \
 # Switch to non-root user
 USER appuser
 
-# Expose ports (Gradio on 7860, FastAPI on 8000)
-EXPOSE 7860 8000
+# Expose FastAPI backend port
+EXPOSE 8000
 
 # Health check for FastAPI backend
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
@@ -62,5 +63,5 @@ ENV PYTHONUNBUFFERED=1 \
     ENVIRONMENT=production \
     LOG_LEVEL=INFO
 
-# Run the application (Gradio will start FastAPI in background)
+# Run the backend application
 CMD ["python", "app.py"]

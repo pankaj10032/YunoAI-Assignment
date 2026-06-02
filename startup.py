@@ -49,38 +49,14 @@ def main():
     # Start the main application
     print("🎯 Starting main application...")
     try:
-        # Import and run the main app
-        from app import create_interface
-        import threading
+        # Import and run the FastAPI backend
         import uvicorn
-        import time
-        
-        # Start FastAPI server in background
-        def start_fastapi():
-            try:
-                sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
-                from backend.app.app import app
-                uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
-            except Exception as e:
-                print(f"❌ FastAPI startup failed: {e}")
-        
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
+        from backend.app.app import app
+
         print("📡 Starting FastAPI backend...")
-        fastapi_thread = threading.Thread(target=start_fastapi, daemon=True)
-        fastapi_thread.start()
-        
-        # Wait for backend to start
-        time.sleep(3)
-        
-        # Start Gradio frontend
-        print("🎨 Starting Gradio frontend...")
-        demo = create_interface()
-        demo.launch(
-            server_name="0.0.0.0",
-            server_port=7860,
-            show_api=False,
-            share=False
-        )
-        
+        uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+
     except Exception as e:
         print(f"❌ Startup failed: {e}")
         sys.exit(1)
