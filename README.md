@@ -44,7 +44,7 @@ This section maps the implementation to the rubric the reviewer will likely use.
 - **At least 2 pre-built workflow templates:** seeded during app startup.
 - **External channel integration:** Telegram channel support is implemented and can be connected to an agent.
 - **Live monitoring:** workflow runs publish events, persist message history, and track completion metadata such as tokens/cost estimates.
-- **Working end-to-end demo:** the code path exists for multi-agent workflow execution and channel interaction, but a polished recorded demo should be attached before submission.
+- **Working end-to-end demo:** the code path exists for multi-agent workflow execution and channel interaction, with a recorded demo here: [Working end-to-end demo](https://drive.google.com/file/d/16CWTLWEgDY4S8S46XYt0LMuNWPPJDR32/view?usp=sharing)
 
 ### Code quality standards
 
@@ -122,11 +122,11 @@ pytest backend/tests
 - Local setup is documented.
 - Telegram flow is described.
 - Workflow templates are mentioned.
-- Demo recording is attached before final submission.
+- Demo recording is attached before final submission: [Working end-to-end demo](https://drive.google.com/file/d/16CWTLWEgDY4S8S46XYt0LMuNWPPJDR32/view?usp=sharing)
 
 ## Next step for strongest shortlist odds
 
-Add a short demo recording that shows:
+The submitted demo recording shows:
 - creating an agent
 - connecting Telegram
 - launching a workflow with 2+ agents
