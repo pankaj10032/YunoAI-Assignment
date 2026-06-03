@@ -136,7 +136,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-          <div className="card-lift rounded-3xl border border-line bg-surface p-5 shadow-sm transition-colors">
+        <div className="card-lift rounded-3xl border border-line bg-surface p-5 shadow-sm transition-colors">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
               Shortcuts
