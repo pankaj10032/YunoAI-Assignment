@@ -1,14 +1,3 @@
----
-title: AI Orchestrator
-emoji: "🤖"
-colorFrom: blue
-colorTo: green
-sdk: docker
-python_version: "3.11"
-app_file: Dockerfile
-pinned: false
----
-
 # AI Agent Orchestration Platform
 
 ## Live Demo
