@@ -80,7 +80,7 @@ def execute_agent_background(
     task_description: str,
     correlation_id: str | None = None,
 ) -> None:
-    asyncio.run(_execute_agent(run_id, agent_id, task_description, correlation_id))
+    _run_coroutine(_execute_agent(run_id, agent_id, task_description, correlation_id))
 
 
 def execute_workflow_background(
@@ -89,7 +89,7 @@ def execute_workflow_background(
     input_data: dict[str, Any],
     correlation_id: str | None = None,
 ) -> None:
-    asyncio.run(_execute_workflow(run_id, workflow_id, input_data, None, correlation_id))
+    _run_coroutine(_execute_workflow(run_id, workflow_id, input_data, None, correlation_id))
 
 
 def resume_workflow_background(
@@ -99,7 +99,23 @@ def resume_workflow_background(
     resume_from_step: str | None = None,
     correlation_id: str | None = None,
 ) -> None:
-    asyncio.run(_execute_workflow(run_id, workflow_id, input_data, resume_from_step, correlation_id))
+    _run_coroutine(_execute_workflow(run_id, workflow_id, input_data, resume_from_step, correlation_id))
+
+
+def _run_coroutine(coro) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(coro)
+        return
+
+    if loop.is_running():
+        future = asyncio.ensure_future(coro)
+        if future.done() and future.exception():
+            raise future.exception()
+        return
+
+    loop.run_until_complete(coro)
 
 
 async def _execute_agent(

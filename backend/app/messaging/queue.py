@@ -30,10 +30,18 @@ def publish(
     owns_session = db is None
     session = db or SessionLocal()
     try:
+        # Normalize payload so concurrent writers always persist a plain JSON object.
+        if isinstance(payload, dict):
+            normalized_payload = dict(payload)
+            normalized_payload.setdefault("content", str(payload.get("content", "")).strip())
+            normalized_payload.setdefault("sequence", payload.get("sequence"))
+            normalized_payload["correlation_id"] = get_request_context().get("correlation_id")
+        else:
+            normalized_payload = payload
         message = AgentMessage(
             sender_id=sender_id,
             receiver_id=receiver_id,
-            payload={**payload, "correlation_id": get_request_context().get("correlation_id")} if isinstance(payload, dict) else payload,
+            payload=normalized_payload,
             status="pending",
             retry_count=0,
         )
@@ -96,6 +104,8 @@ def retry(message_id: int, error_reason: str, db: Session | None = None) -> Agen
         message = session.get(AgentMessage, message_id)
         if not message:
             return None
+        if message.status == "delivered":
+            return message
         message.retry_count += 1
         message.error = error_reason
         if message.retry_count >= MAX_RETRIES:

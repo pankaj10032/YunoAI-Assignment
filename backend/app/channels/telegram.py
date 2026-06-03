@@ -77,10 +77,28 @@ class TelegramChannel(BaseChannel):
     async def register_agent(self, agent_id: int, chat_id: str | int) -> Agent:
         db = SessionLocal()
         try:
+            chat_id_str = str(chat_id)
+            # Ensure a Telegram chat is linked to exactly one agent.
+            for other in db.query(Agent).all():
+                if other.id == agent_id:
+                    continue
+                other_channels = other.channels or []
+                updated_channels = [
+                    item
+                    for item in other_channels
+                    if not (
+                        isinstance(item, dict)
+                        and item.get("name") == "telegram"
+                        and str(item.get("chat_id")) == chat_id_str
+                    )
+                ]
+                if updated_channels != other_channels:
+                    other.channels = updated_channels
+
             agent = db.get(Agent, agent_id)
             if not agent:
                 raise ValueError("Agent not found")
-            channels = _upsert_telegram_channel(agent.channels or [], str(chat_id))
+            channels = _upsert_telegram_channel(agent.channels or [], chat_id_str)
             agent.channels = channels
             db.commit()
             db.refresh(agent)
@@ -107,17 +125,21 @@ class TelegramChannel(BaseChannel):
             await asyncio.sleep(3600)
 
     async def handle_start(self, update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        chat_id = update.effective_chat.id if update.effective_chat else "unknown"
         await update.message.reply_text(
             "AI Orchestrator is online.\n"
+            f"Chat ID: {chat_id}\n"
             "Use /agents to see Telegram-enabled agents, then /connect <agent_id>."
         )
 
     async def handle_help(self, update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        chat_id = update.effective_chat.id if update.effective_chat else "unknown"
         await update.message.reply_text(
             "Commands:\n"
             "/start - Check bot status\n"
             "/agents - List available agents\n"
             "/connect <agent_id> - Link this chat to an agent\n"
+            f"Current chat ID: {chat_id}\n"
             "After connecting, send any message to run that agent."
         )
 
@@ -211,7 +233,8 @@ def _upsert_telegram_channel(channels: list[Any], chat_id: str) -> list[Any]:
 
 
 def _find_agent_by_chat_id(db: Session, chat_id: str | int) -> Agent | None:
-    for agent in db.query(Agent).all():
+    # Prefer the most recently linked agent if legacy data still contains duplicates.
+    for agent in db.query(Agent).order_by(Agent.updated_at.desc(), Agent.id.desc()).all():
         for item in agent.channels or []:
             if isinstance(item, dict) and item.get("name") == "telegram" and str(item.get("chat_id")) == str(chat_id):
                 return agent
@@ -223,7 +246,13 @@ def _format_agent_list(agents: list[Agent]) -> str:
         return "No Telegram-enabled agents are available yet."
     lines = ["Available agents:"]
     for agent in agents:
-        lines.append(f"{agent.id}. {agent.name} - {agent.role or 'Agent'}")
+        chat_id = None
+        for item in agent.channels or []:
+            if isinstance(item, dict) and item.get("name") == "telegram" and item.get("chat_id"):
+                chat_id = str(item.get("chat_id"))
+                break
+        suffix = f" [chat_id: {chat_id}]" if chat_id else ""
+        lines.append(f"{agent.id}. {agent.name} - {agent.role or 'Agent'}{suffix}")
     lines.append("\nUse /connect <agent_id> to link this chat.")
     return "\n".join(lines)
 

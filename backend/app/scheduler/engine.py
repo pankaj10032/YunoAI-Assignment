@@ -49,7 +49,8 @@ class SchedulerEngine:
     async def shutdown(self) -> None:
         logger.info("Shutting down scheduler")
         try:
-            self.scheduler.shutdown(wait=True)
+            if self.scheduler.running:
+                self.scheduler.shutdown(wait=False)
         except Exception as exc:
             logger.exception("Scheduler shutdown failed: %s", exc)
 
@@ -336,11 +337,12 @@ class SchedulerEngine:
             agent = db.get(Agent, agent_id)
             if not agent or not agent.schedule:
                 raise ValueError("Agent schedule not found")
-            schedule = agent.schedule
+            schedule = dict(agent.schedule or {})
             schedule["enabled"] = False
             schedule["paused"] = True
             agent.schedule = schedule
             db.commit()
+            db.refresh(agent)
             self._remove_job(agent_id)
             return {
                 "agent_id": agent.id,
@@ -360,11 +362,12 @@ class SchedulerEngine:
             agent = db.get(Agent, agent_id)
             if not agent or not agent.schedule:
                 raise ValueError("Agent schedule not found")
-            schedule = agent.schedule
+            schedule = dict(agent.schedule or {})
             schedule["enabled"] = True
             schedule["paused"] = False
             agent.schedule = schedule
             db.commit()
+            db.refresh(agent)
             self._register_agent_schedule(agent, db)
             missed_run_count = (
                 db.query(SchedulerMissedRun)
