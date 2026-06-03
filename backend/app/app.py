@@ -959,10 +959,10 @@ async def telegram_set_webhook(payload: TelegramWebhookSetRequest):
         raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
     if not telegram_channel.application:
         raise HTTPException(status_code=503, detail="Telegram channel not initialized")
-    
+
     try:
-        result = await telegram_channel.set_webhook(payload.webhook_url)
-        return {"success": True, "webhook_url": payload.webhook_url, "result": result}
+        await telegram_channel.set_webhook(payload.webhook_url)
+        return {"success": True, "webhook_url": payload.webhook_url}
     except Exception as exc:
         logger.exception("Failed to set Telegram webhook")
         raise HTTPException(status_code=500, detail=f"Failed to set webhook: {exc}") from exc
@@ -974,9 +974,9 @@ async def telegram_delete_webhook():
     if not settings.telegram_bot_token:
         raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
     if not telegram_channel.application:
-        raise HTTPException(status_code=503, detail="Telegram channel is not initialised")
+        raise HTTPException(status_code=503, detail="Telegram channel not initialized")
     try:
-        await telegram_channel.application.bot.delete_webhook()
+        await telegram_channel.delete_webhook()
         logger.info("Telegram webhook deleted")
         return {"ok": True}
     except Exception as exc:
@@ -989,15 +989,15 @@ async def telegram_webhook_info():
     if not settings.telegram_bot_token:
         raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
     if not telegram_channel.application:
-        raise HTTPException(status_code=503, detail="Telegram channel is not initialised")
+        raise HTTPException(status_code=503, detail="Telegram channel not initialized")
     try:
-        info = await telegram_channel.application.bot.get_webhook_info()
+        info = await telegram_channel.get_webhook_info()
         return {
             "url": info.url,
             "has_custom_certificate": info.has_custom_certificate,
             "pending_update_count": info.pending_update_count,
             "last_error_message": info.last_error_message,
-            "last_error_date": info.last_error_date.isoformat() if info.last_error_date else None,
+            "last_error_date": _serialize_telegram_timestamp(info.last_error_date),
         }
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1008,7 +1008,7 @@ async def telegram_send_message(payload: TelegramSendRequest):
     """Send a message to a Telegram chat."""
     if not settings.telegram_bot_token:
         raise HTTPException(status_code=503, detail="Telegram bot token is not configured")
-    
+
     # Ensure telegram channel is initialized and connected
     if not telegram_channel.application:
         try:
@@ -1018,7 +1018,7 @@ async def telegram_send_message(payload: TelegramSendRequest):
         except Exception as init_exc:
             logger.exception("Failed to initialize Telegram channel")
             raise HTTPException(status_code=503, detail=f"Telegram channel initialization failed: {str(init_exc)}") from init_exc
-    
+
     # Ensure the channel is connected
     if not telegram_channel.connected:
         try:
@@ -1035,6 +1035,14 @@ async def telegram_send_message(payload: TelegramSendRequest):
     except Exception as exc:
         logger.exception("Failed to send Telegram message", extra={"chat_id": payload.chat_id, "error": str(exc)})
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(exc)}") from exc
+
+
+def _serialize_telegram_timestamp(value: object) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()  # type: ignore[return-value]
+    return str(value)
 
 
 
@@ -1153,4 +1161,3 @@ async def serve_frontend(full_path: str):
     if os.path.isfile(index_path):
         return FileResponse(index_path)
     return JSONResponse(status_code=404, content={"detail": "Not Found"})
-

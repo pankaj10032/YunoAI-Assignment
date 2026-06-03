@@ -74,6 +74,26 @@ class TelegramChannel(BaseChannel):
             raise RuntimeError("Telegram channel is not initialized")
         await self.application.bot.send_message(chat_id=chat_id, text=text[:4096])
 
+    async def set_webhook(self, webhook_url: str) -> Any:
+        if not self.application:
+            raise RuntimeError("Telegram channel is not initialized")
+        if not webhook_url.startswith("https://"):
+            raise ValueError("Webhook URL must start with https://")
+        return await self.application.bot.set_webhook(
+            url=webhook_url,
+            drop_pending_updates=True,
+        )
+
+    async def delete_webhook(self) -> Any:
+        if not self.application:
+            raise RuntimeError("Telegram channel is not initialized")
+        return await self.application.bot.delete_webhook(drop_pending_updates=True)
+
+    async def get_webhook_info(self) -> Any:
+        if not self.application:
+            raise RuntimeError("Telegram channel is not initialized")
+        return await self.application.bot.get_webhook_info()
+
     async def register_agent(self, agent_id: int, chat_id: str | int) -> Agent:
         db = SessionLocal()
         try:
