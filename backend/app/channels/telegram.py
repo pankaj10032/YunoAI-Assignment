@@ -76,7 +76,9 @@ class TelegramChannel(BaseChannel):
 
     async def set_webhook(self, webhook_url: str) -> Any:
         if not self.application:
-            raise RuntimeError("Telegram channel is not initialized")
+            if not self.bot_token:
+                raise RuntimeError("Telegram channel is not initialized")
+            self.initialize(self.bot_token)
         if not webhook_url.startswith("https://"):
             raise ValueError("Webhook URL must start with https://")
         return await self.application.bot.set_webhook(
@@ -86,12 +88,16 @@ class TelegramChannel(BaseChannel):
 
     async def delete_webhook(self) -> Any:
         if not self.application:
-            raise RuntimeError("Telegram channel is not initialized")
+            if not self.bot_token:
+                raise RuntimeError("Telegram channel is not initialized")
+            self.initialize(self.bot_token)
         return await self.application.bot.delete_webhook(drop_pending_updates=True)
 
     async def get_webhook_info(self) -> Any:
         if not self.application:
-            raise RuntimeError("Telegram channel is not initialized")
+            if not self.bot_token:
+                raise RuntimeError("Telegram channel is not initialized")
+            self.initialize(self.bot_token)
         return await self.application.bot.get_webhook_info()
 
     async def register_agent(self, agent_id: int, chat_id: str | int) -> Agent:
