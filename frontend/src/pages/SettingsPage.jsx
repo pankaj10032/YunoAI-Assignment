@@ -178,6 +178,7 @@ function WebhookCard({ webhookInfo, onRefresh, toast }) {
   const [busy, setBusy] = useState(false);
 
   const handleSet = async () => {
+    if (busy) return;
     if (!url.startsWith("https://")) {
       toast.error("Webhook URL must start with https://");
       return;

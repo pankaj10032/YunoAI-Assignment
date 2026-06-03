@@ -81,6 +81,9 @@ class TelegramChannel(BaseChannel):
             self.initialize(self.bot_token)
         if not webhook_url.startswith("https://"):
             raise ValueError("Webhook URL must start with https://")
+        current = await self.application.bot.get_webhook_info()
+        if getattr(current, "url", None) == webhook_url:
+            return current
         return await self.application.bot.set_webhook(
             url=webhook_url,
             drop_pending_updates=True,
