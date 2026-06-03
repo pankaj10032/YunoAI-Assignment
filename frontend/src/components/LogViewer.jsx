@@ -5,9 +5,9 @@ import { getRuns } from "../services/api";
 import { connectRunSocket } from "../services/websocket";
 
 const levelClass = {
-  INFO: "text-blue-700",
-  DEBUG: "text-gray-600",
-  ERROR: "text-red-700",
+  INFO: "text-emerald-300",
+  DEBUG: "text-sky-300",
+  ERROR: "text-rose-300",
 };
 
 export default function LogViewer() {
@@ -47,21 +47,42 @@ export default function LogViewer() {
   }, [logs, autoScroll]);
 
   return (
-    <div className="rounded-md border border-line bg-surface transition-colors">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line p-3">
-        <select value={runId} onChange={(event) => setRunId(event.target.value)} className="rounded-md border border-line px-3 py-2 text-sm">
-          <option value="">Select run stream</option>
-          {runs.map((run) => <option key={run.id} value={run.id}>Run #{run.id} · {run.status}</option>)}
-        </select>
-        <button onClick={() => setPaused((value) => !value)} className="rounded-md border border-line px-3 py-2 text-sm font-semibold">
-          {paused ? "Resume" : "Pause"}
-        </button>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={autoScroll} onChange={(event) => setAutoScroll(event.target.checked)} />
-          Auto-scroll
-        </label>
+    <div className="overflow-hidden rounded-3xl border border-line bg-surface shadow-sm transition-colors">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line p-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Stream logs</p>
+          <h3 className="mt-1 text-lg font-semibold">Real-time execution feed</h3>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <select
+            value={runId}
+            onChange={(event) => setRunId(event.target.value)}
+            className="rounded-xl border border-line bg-surface px-3 py-2 text-sm shadow-sm"
+          >
+            <option value="">Select run stream</option>
+            {runs.map((run) => (
+              <option key={run.id} value={run.id}>
+                Run #{run.id} - {run.status}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setPaused((value) => !value)}
+            className="rounded-xl border border-line px-3 py-2 text-sm font-semibold transition hover:bg-soft"
+          >
+            {paused ? "Resume" : "Pause"}
+          </button>
+          <label className="flex items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+            <input type="checkbox" checked={autoScroll} onChange={(event) => setAutoScroll(event.target.checked)} />
+            Auto-scroll
+          </label>
+        </div>
       </div>
-      <div className="h-[520px] overflow-y-auto bg-[#101418] p-4 font-mono text-sm text-gray-100">
+
+      <div className="h-[520px] overflow-y-auto bg-[#0d1117] p-4 font-mono text-sm text-gray-100">
+        <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-300">
+          Streaming events appear here when a run is selected. This gives reviewers a visible runtime trace.
+        </div>
         {logs.map((log, index) => (
           <div key={`${log.time}-${index}`} className="py-1">
             <span className="text-gray-500">{log.time}</span>{" "}

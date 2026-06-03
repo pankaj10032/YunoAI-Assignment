@@ -18,7 +18,7 @@ const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage"));
 function PageLoader() {
   return (
     <div className="rounded-md border border-line bg-surface px-4 py-3 text-sm text-muted transition-colors">
-      Loading…
+      Loading...
     </div>
   );
 }

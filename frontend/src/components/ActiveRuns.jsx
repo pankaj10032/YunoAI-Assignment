@@ -43,7 +43,6 @@ export default function ActiveRuns({ onSelectRun }) {
         })
         .catch(() => active && setRuns([]));
     load();
-    // Increased polling interval from 5s to 10s to reduce server load
     const timer = window.setInterval(load, 10000);
     return () => {
       active = false;
@@ -77,9 +76,7 @@ export default function ActiveRuns({ onSelectRun }) {
       setTimelineSteps([]);
       return;
     }
-    setTimelineSteps((current) =>
-      buildSteps(timelineWorkflow, timelineRun, current),
-    );
+    setTimelineSteps((current) => buildSteps(timelineWorkflow, timelineRun, current));
   }, [timelineRun?.id, timelineRun?.status, timelineWorkflow?.id]);
 
   useEffect(() => {
@@ -146,39 +143,39 @@ export default function ActiveRuns({ onSelectRun }) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="overflow-hidden rounded-md border border-line bg-surface transition-colors">
+      <div className="overflow-hidden rounded-3xl border border-line bg-surface shadow-sm transition-colors">
         <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-line text-left text-sm">
-          <thead className="bg-soft text-xs uppercase text-muted">
-            <tr>
-              <th className="px-4 py-3">Workflow Run</th>
-              <th className="px-4 py-3">Started</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Progress</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {groupedRuns.map((group) => (
-              <RunGroup
-                key={group.workflowId}
-                group={group}
-                timelineRunId={timelineRunId}
-                replayLinks={replayLinks}
-                onTimeline={setTimelineRunId}
-                onSelectRun={onSelectRun}
-                onResume={handleResume}
-              />
-            ))}
-            {!runs.length ? (
+          <table className="min-w-full divide-y divide-line text-left text-sm">
+            <thead className="bg-soft/80 text-xs uppercase tracking-[0.14em] text-muted">
               <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan="5">
-                  No workflow runs yet.
-                </td>
+                <th className="px-4 py-3">Workflow Run</th>
+                <th className="px-4 py-3">Started</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Progress</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {groupedRuns.map((group) => (
+                <RunGroup
+                  key={group.workflowId}
+                  group={group}
+                  timelineRunId={timelineRunId}
+                  replayLinks={replayLinks}
+                  onTimeline={setTimelineRunId}
+                  onSelectRun={onSelectRun}
+                  onResume={handleResume}
+                />
+              ))}
+              {!runs.length ? (
+                <tr>
+                  <td className="px-4 py-8 text-center text-muted" colSpan="5">
+                    No workflow runs yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -196,7 +193,7 @@ export default function ActiveRuns({ onSelectRun }) {
         onExport={timelineRun?.status === "completed" || timelineRun?.status === "failed" ? exportTimeline : null}
       />
       {comparisonEnabled && timelineRun && replayLinks[timelineRun.id] ? (
-        <div className="rounded-md border border-line bg-surface p-4 text-sm transition-colors xl:col-start-2">
+        <div className="rounded-3xl border border-line bg-surface p-4 text-sm shadow-sm transition-colors xl:col-start-2">
           <p className="font-semibold">Replay comparison</p>
           <p className="mt-1 text-muted">
             Run #{timelineRun.id} is being compared with Run #{replayLinks[timelineRun.id]}.
@@ -211,13 +208,21 @@ function RunGroup({ group, timelineRunId, replayLinks, onTimeline, onSelectRun, 
   return (
     <>
       <tr className="bg-soft/50">
-        <td className="px-4 py-2 text-xs font-semibold uppercase text-muted" colSpan="5">
-          {group.workflowName} · {group.runs.length} run{group.runs.length === 1 ? "" : "s"}
+        <td className="px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted" colSpan="5">
+          {group.workflowName} - {group.runs.length} run{group.runs.length === 1 ? "" : "s"}
         </td>
       </tr>
       {group.runs.map((run) => {
         const progress =
-          run.status === "completed" ? 100 : run.status === "failed" ? 100 : run.status === "paused" ? 65 : run.status === "running" ? 55 : 15;
+          run.status === "completed"
+            ? 100
+            : run.status === "failed"
+              ? 100
+              : run.status === "paused"
+                ? 65
+                : run.status === "running"
+                  ? 55
+                  : 15;
         const isTimelineRun = run.id === timelineRunId;
         return (
           <tr key={run.id} className={isTimelineRun ? "bg-soft/60" : ""}>
@@ -241,18 +246,18 @@ function RunGroup({ group, timelineRunId, replayLinks, onTimeline, onSelectRun, 
               </div>
             </td>
             <td className="px-4 py-3 text-right">
-              <button onClick={() => onTimeline(run.id)} className="rounded-md border border-line px-3 py-1.5 font-medium">
+              <button onClick={() => onTimeline(run.id)} className="rounded-xl border border-line px-3 py-1.5 font-medium transition hover:bg-soft">
                 Timeline
               </button>
-              <button onClick={() => onSelectRun(run)} className="ml-2 rounded-md border border-line px-3 py-1.5 font-medium">
+              <button onClick={() => onSelectRun(run)} className="ml-2 rounded-xl border border-line px-3 py-1.5 font-medium transition hover:bg-soft">
                 View Details
               </button>
               {run.status === "paused" || run.status === "failed" ? (
-                <button onClick={() => onResume(run)} className="ml-2 rounded-md border border-line px-3 py-1.5 font-medium">
+                <button onClick={() => onResume(run)} className="ml-2 rounded-xl border border-line px-3 py-1.5 font-medium transition hover:bg-soft">
                   Resume
                 </button>
               ) : null}
-              <button disabled className="ml-2 rounded-md border border-line px-3 py-1.5 font-medium text-muted opacity-60">
+              <button disabled className="ml-2 rounded-xl border border-line px-3 py-1.5 font-medium text-muted opacity-60">
                 Stop
               </button>
             </td>
@@ -318,95 +323,57 @@ function buildSteps(workflow, run, current = []) {
   const activeIndex = Math.max(0, current.findIndex((step) => step.status === "running"));
 
   return baseNodes.map((node, index) => {
-    const name = node.data?.label || node.data?.agent_name || `Step ${index + 1}`;
-    const existing = currentByName.get(name) || {};
-    const status = statusForRun(run.status, index, activeIndex, existing.status);
+    const label = node.data?.label || `Step ${index + 1}`;
+    const previous = currentByName.get(label);
     return {
-      agent_name: name,
-      status,
-      timestamp:
-        existing.timestamp ||
-        (status !== "pending" ? run.started_at || new Date().toISOString() : null),
-      completed_at:
-        existing.completed_at ||
-        (status === "done" || status === "failed" ? run.completed_at : null),
-      error: status === "failed" ? existing.error || "Execution failed." : existing.error,
-      input: existing.input || node.data?.task || workflow.description || "",
-      output: existing.output || "",
-      tokens: existing.tokens || (status === "done" ? Math.floor((run.total_tokens || 0) / baseNodes.length) : 0),
+      agent_name: label,
+      status:
+        previous?.status ||
+        (index < activeIndex ? "done" : index === activeIndex ? "running" : "pending"),
+      timestamp: previous?.timestamp || run.started_at,
+      completed_at: previous?.completed_at || null,
+      error: previous?.error || null,
+      input: previous?.input || workflow.description || "",
+      output: previous?.output || "",
+      tokens: previous?.tokens || 0,
     };
   });
 }
 
-function labelForStep(workflow, stepId) {
-  const node = (workflow.nodes || []).find((item) => item.id === stepId);
-  return node?.data?.label || node?.data?.agent_name || stepId;
-}
-
-function statusForRun(runStatus, index, activeIndex, existingStatus) {
-  if (runStatus === "completed") return "done";
-  if (runStatus === "failed") {
-    if (existingStatus === "done") return "done";
-    return index === activeIndex ? "failed" : index < activeIndex ? "done" : "pending";
-  }
-  if (runStatus === "paused") {
-    if (existingStatus === "done") return "done";
-    return index === activeIndex ? "paused" : index < activeIndex ? "done" : "pending";
-  }
-  if (runStatus === "running") {
-    if (existingStatus === "done") return "done";
-    if (existingStatus === "running") return "running";
-    return index === 0 ? "running" : "pending";
-  }
-  return "pending";
+function mergeMessagesIntoSteps(steps, messages) {
+  return steps.map((step, index) => {
+    const related = messages.filter(
+      (message) =>
+        message.sender_agent_id || message.receiver_agent_id
+          ? index === 0 || message.sender_agent_id || message.receiver_agent_id
+          : false,
+    );
+    const last = related.at(-1);
+    return last
+      ? {
+          ...step,
+          output: last.content,
+          tokens: last.message_metadata?.tokens || step.tokens,
+        }
+      : step;
+  });
 }
 
 function updateStepsFromEvent(steps, event) {
   if (!steps.length) return steps;
+  if (event.type === "paused") {
+    return steps.map((step, index) => (index === steps.length - 1 ? { ...step, status: "paused" } : step));
+  }
+  if (event.type === "log" || event.type === "message_sent") {
+    return steps;
+  }
   if (event.type === "completed") {
-    return steps.map((step, index) => ({
-      ...step,
-      status: "done",
-      completed_at: new Date().toISOString(),
-      output: index === steps.length - 1 ? event.result || step.output : step.output,
-      tokens: step.tokens || Math.floor((event.usage?.tokens || 0) / steps.length),
-    }));
-  }
-  if (event.type === "failed" || event.type === "paused") {
-    const runningIndex = Math.max(0, steps.findIndex((step) => step.status === "running"));
-    return steps.map((step, index) =>
-      index === runningIndex
-        ? { ...step, status: event.type, error: event.message || "Execution failed." }
-        : step,
-    );
-  }
-  if (event.type === "log" || event.type === "connected") {
-    const runningIndex = Math.max(0, steps.findIndex((step) => step.status === "running"));
-    return steps.map((step, index) =>
-      index === runningIndex
-        ? {
-            ...step,
-            status: "running",
-            timestamp: step.timestamp || new Date().toISOString(),
-            output: event.message || step.output,
-          }
-        : step,
-    );
+    return steps.map((step, index) => (index === steps.length - 1 ? { ...step, status: "done" } : step));
   }
   return steps;
 }
 
-function mergeMessagesIntoSteps(steps, messages) {
-  if (!steps.length || !messages.length) return steps;
-  const lastMessage = messages[messages.length - 1];
-  const tokens = messages.reduce((sum, message) => sum + (message.metadata?.tokens || 0), 0);
-  return steps.map((step, index) =>
-    index === steps.length - 1
-      ? {
-          ...step,
-          output: lastMessage.content || step.output,
-          tokens: step.tokens || tokens,
-        }
-      : step,
-  );
+function labelForStep(workflow, stepId) {
+  const node = (workflow.nodes || []).find((item) => item.id === stepId);
+  return node?.data?.label || stepId || "Step";
 }
