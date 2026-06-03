@@ -104,7 +104,7 @@ export const streamLogs = (runId, handlers = {}) => {
 
 // ── Telegram channel ────────────────────────────────────────
 export const getTelegramStatus = () =>
-  api.get("/api/channels/telegram/status").then(unwrap);
+  api.get("/api/channels/telegram/status", { skipToast: true }).then(unwrap);
 
 export const connectTelegramAgent = (agentId, chatId) =>
   api.post("/api/channels/telegram/connect", { agent_id: agentId, chat_id: chatId }).then(unwrap);
@@ -116,8 +116,7 @@ export const deleteTelegramWebhook = () =>
   api.post("/api/channels/telegram/webhook/delete").then(unwrap);
 
 export const getTelegramWebhookInfo = () =>
-  api.get("/api/channels/telegram/webhook/info").then(unwrap);
+  api.get("/api/channels/telegram/webhook/info", { skipToast: true }).then(unwrap);
 
 export const sendTelegramMessage = (chatId, text) =>
   api.post("/api/channels/telegram/send", { chat_id: chatId, text }).then(unwrap);
-
