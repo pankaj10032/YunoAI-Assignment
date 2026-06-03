@@ -80,6 +80,9 @@ function WorkflowsInner() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [workflowInput, setWorkflowInput] = useState("Run this workflow from the visual builder.");
+  const [latestRunOutput, setLatestRunOutput] = useState("");
+  const [latestRunId, setLatestRunId] = useState(null);
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   const snapshot = useCallback(
@@ -318,6 +321,7 @@ function WorkflowsInner() {
   const handleRun = async () => {
     setError("");
     setIsRunning(true);
+    setLatestRunOutput("");
     try {
       let workflowId = selectedWorkflowId;
       if (!workflowId) {
@@ -334,12 +338,14 @@ function WorkflowsInner() {
         ),
       );
       const run = await runWorkflow(workflowId, {
-        input: "Run this workflow from the visual builder.",
+        input: workflowInput.trim(),
       });
+      setLatestRunId(run.run_id);
       setMessage(`Started run #${run.run_id}.`);
       const socket = streamLogs(run.run_id, {
         onMessage: (event) => {
           if (event.type === "completed") {
+            setLatestRunOutput(event.result || "");
             setNodes((items) =>
               items.map((node) =>
                 node.type === "agent"
@@ -350,6 +356,7 @@ function WorkflowsInner() {
             setIsRunning(false);
           }
           if (event.type === "failed") {
+            setLatestRunOutput("");
             setNodes((items) =>
               items.map((node) =>
                 node.type === "agent" ? { ...node, data: { ...node.data, status: "error" } } : node,
@@ -519,6 +526,36 @@ function WorkflowsInner() {
               ))
             ) : (
               <p className="text-sm text-muted">No templates match. Try adjusting filters.</p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-md border border-line bg-surface p-4 transition-colors">
+          <h3 className="text-sm font-semibold">Workflow Input</h3>
+          <p className="mt-1 text-xs text-muted">
+            This value is sent to the workflow as `input` when you click Run.
+          </p>
+          <textarea
+            value={workflowInput}
+            onChange={(event) => setWorkflowInput(event.target.value)}
+            rows={5}
+            className="mt-3 w-full rounded-md border border-line px-3 py-2 text-sm outline-none transition-colors focus:border-ink"
+            placeholder="Enter the custom input for this workflow..."
+          />
+        </div>
+
+        <div className="rounded-md border border-line bg-surface p-4 transition-colors">
+          <h3 className="text-sm font-semibold">Latest Output</h3>
+          <p className="mt-1 text-xs text-muted">
+            {latestRunId ? `Run #${latestRunId}` : "No workflow has finished yet."}
+          </p>
+          <div className="mt-3 min-h-28 rounded-md border border-dashed border-line bg-soft px-3 py-2 text-sm text-ink">
+            {latestRunOutput ? (
+              <pre className="whitespace-pre-wrap font-sans text-sm">{latestRunOutput}</pre>
+            ) : (
+              <span className="text-muted">The completed workflow response will appear here.</span>
             )}
           </div>
         </div>
