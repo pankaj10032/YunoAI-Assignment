@@ -11,6 +11,12 @@ pinned: false
 
 # AI Agent Orchestration Platform
 
+## Live Demo
+
+- [Working end-to-end demo](https://drive.google.com/file/d/16CWTLWEgDY4S8S46XYt0LMuNWPPJDR32/view?usp=sharing)
+- [AIAgent-Orchestrator bot](https://web.telegram.org/a/#8607688418)
+- [Deployed Space](https://huggingface.co/spaces/Pankaj10346/AI-Orchestrator)
+
 This repository implements a local-first AI agent orchestration platform with:
 - Agent CRUD and configuration
 - Visual workflow execution
@@ -107,6 +113,9 @@ Important:
 4. The runtime executes the configured agent logic.
 5. Messages, run status, and audit events are persisted.
 6. Telegram can be used as an external conversational entry point.
+
+Telegram chat demo:
+[AIAgent-Orchestrator bot](https://web.telegram.org/a/#8607688418)
 
 ## Tests
 
